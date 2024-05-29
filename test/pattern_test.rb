@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 require 'minitest/autorun'
-require_relative '../lib/pattern'
+require_relative '../lib/pattern_finder'
 
 # Test the Pattern class
 # rubocop:disable Metrics/ClassLength

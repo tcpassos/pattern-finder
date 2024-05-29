@@ -3,7 +3,6 @@
 require 'forwardable'
 require_relative 'subpattern'
 
-# ===============================================================================
 # Represents a pattern to match against a list of values
 class Pattern
   attr_reader :root
@@ -62,7 +61,6 @@ class Pattern
   end
 end
 
-# ===============================================================================
 # Pattern match
 class PatternMatch
   extend Forwardable

@@ -1,39 +1,5 @@
 # frozen_string_literal: true
 
-# ===============================================================================
-# Collection of default subpatterns
-module DefaultSubPatterns
-  def any(optional: false, repeat: false)
-    new(->(_) { true }, optional: optional, repeat: repeat)
-  end
-
-  def any_required(repeat: false)
-    new(->(_) { true }, optional: false, repeat: repeat)
-  end
-
-  def any_optional(repeat: false)
-    new(->(_) { true }, optional: true, repeat: repeat)
-  end
-end
-
-# ===============================================================================
-# Sub-pattern representation
-class SubPattern
-  extend DefaultSubPatterns
-  attr_reader :evaluator, :optional, :repeat
-
-  def initialize(evaluator, optional: false, repeat: false)
-    @evaluator = evaluator
-    @optional = optional
-    @repeat = repeat
-  end
-
-  def match?(value)
-    @evaluator.call(value)
-  end
-end
-
-# ===============================================================================
 # Node containing a subpattern and its children
 class SubPatternNode
   attr_reader :subpattern, :subpatterns, :children
@@ -52,7 +18,7 @@ class SubPatternNode
   # @return [Array, nil] The matched elements or nil if the node doesn't match
   def match(values)
     # Sort by the number of matched elements and return the first complete match
-    match_incomplete(values).sort_by { |match| match.flatten.size }.reverse_each do |match|
+    match_incomplete(values, []).sort_by { |match| match.flatten.size }.reverse.each do |match|
       return match if match_complete?(match)
     end
     # Will return nil if no match is found
@@ -77,15 +43,16 @@ class SubPatternNode
   # Match the node against a list of values
   # This method returns every possible match, even if it's incomplete
   # @param [Array] values The values to match against
+  # @param [Array] matched_so_far The matched elements so far
   # @return [Array] The matched elements
-  def match_incomplete(values)
+  def match_incomplete(values, matched_so_far)
     matched = []
     return matched if values.empty?
 
     # Match all values with children if the subpattern is optional
-    add_child_matches(matched, values, []) if @subpattern.optional
+    add_child_matches(matched, values, [], matched_so_far) if @subpattern.optional
     # If the first value matches the subpattern, continue matching with the remaining values
-    process_first_value(matched, values) if match_with_node_subpattern?(values.first)
+    process_first_value(matched, values, matched_so_far) if match_with_node_subpattern?(values.first, matched_so_far)
     # Return the matched elements
     matched
   end
@@ -102,9 +69,10 @@ class SubPatternNode
   # @param [Array] matched The matched elements
   # @param [Array] values The values to match against
   # @param [Array] first_value The first value of the match
-  def add_child_matches(matched, values, first_value)
+  # @param [Array] matched_so_far The matched elements so far
+  def add_child_matches(matched, values, first_value, matched_so_far)
     @children.each do |child|
-      child.match_incomplete(values).each do |match|
+      child.match_incomplete(values, matched_so_far + first_value).each do |match|
         matched << [first_value] + match
       end
     end
@@ -113,26 +81,28 @@ class SubPatternNode
   # Process the first value of the node
   # @param [Array] matched The matched elements so far
   # @param [Array] values The values to match against
-  def process_first_value(matched, values)
+  # @param [Array] matched_so_far The matched elements so far
+  def process_first_value(matched, values, matched_so_far)
     remaining_values = values[1..]
     first_value = values.first
     # If the subpattern is repeatable, add the repeated matches
     # Otherwise, add an array with the first value and empty arrays for the children
     if @subpattern.repeat
-      add_repeated_matches(matched, remaining_values, first_value)
+      add_repeated_matches(matched, remaining_values, first_value, matched_so_far)
     else
       matched << [[first_value] + Array.new(@children.size) { [] }]
     end
     # Match the children with the remaining values
-    add_child_matches(matched, remaining_values, [first_value])
+    add_child_matches(matched, remaining_values, [first_value], matched_so_far)
   end
 
   # Add repeated matches to the matched elements
   # @param [Array] matched The matched elements so far
   # @param [Array] remaining_values The remaining values to match against
   # @param [Object] first_value The first value of the match
-  def add_repeated_matches(matched, remaining_values, first_value)
-    match_remaining = match_incomplete(remaining_values)
+  # @param [Array] matched_so_far The matched elements so far
+  def add_repeated_matches(matched, remaining_values, first_value, matched_so_far)
+    match_remaining = match_incomplete(remaining_values, matched_so_far + [first_value])
 
     if match_remaining.empty?
       matched << [[first_value] + Array.new(@children.size) { [] }]
@@ -157,10 +127,12 @@ class SubPatternNode
 
   # Match a value with the current subpattern of the node
   # @param [Object] value The value to match
-  # @return [Array, nil] The matched value and the index of the subpattern or nil if it doesn't match
-  def match_with_node_subpattern?(value)
-    @matched_values[value] = @subpattern.match?(value) unless @matched_values.key?(value)
-    @matched_values[value]
+  # @param [Array] matched_so_far The matched elements so far
+  # @return [Boolean] Whether the value matches the subpattern
+  def match_with_node_subpattern?(value, matched_so_far)
+    @matched_values[value] ||= {}
+    @matched_values[value][matched_so_far] ||= @subpattern.match?(value, matched_so_far)
+    @matched_values[value][matched_so_far]
   end
 
   # Check if all elements matched
