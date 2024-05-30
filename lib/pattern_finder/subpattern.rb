@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-require_relative 'subpattern_node'
-
 # Sub-pattern representation
 class SubPattern
   attr_reader :evaluator, :optional, :repeat
@@ -62,7 +60,10 @@ class SubPattern
   # @return [Boolean] Whether the subpattern matches the value
   def match?(value, matched_so_far = [])
     key = [value, matched_so_far].hash
-    match ||= @matched[key] = (@evaluator.arity == 1 ? @evaluator.call(value) : @evaluator.call(value, matched_so_far))
+    return @matched[key] if @matched.key?(key)
+
+    match = @evaluator.arity == 1 ? @evaluator.call(value) : @evaluator.call(value, matched_so_far)
+    @matched[key] = match
     match
   end
 end
