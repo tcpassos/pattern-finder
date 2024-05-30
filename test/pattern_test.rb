@@ -40,7 +40,7 @@ class TestPattern < Minitest::Test
   def test_pattern_with_any_optional_repeat_subpattern
     pattern = Pattern.new
     pattern.add_subpattern_from_evaluator(->(value) { value == 'a' })
-    pattern.add_subpattern(SubPattern.any_optional(repeat: true))
+    pattern.add_subpattern_from_evaluator(->(_) { true }, repeat: true)
     pattern.add_subpattern_from_evaluator(->(value) { value == 'd' })
 
     assert_equal([['a'], %w[b c], ['d']], pattern.match(%w[a b c d])&.matched)

@@ -1,11 +1,9 @@
 # frozen_string_literal: true
 
-require_relative 'default_subpatterns'
 require_relative 'subpattern_node'
 
 # Sub-pattern representation
 class SubPattern
-  extend DefaultSubPatterns
   attr_reader :evaluator, :optional, :repeat
 
   # Constructor
@@ -16,6 +14,7 @@ class SubPattern
     @evaluator = evaluator
     @optional = optional
     @repeat = repeat
+    @matched = {}
   end
 
   # Combine this subpattern with another using logical AND
@@ -61,7 +60,9 @@ class SubPattern
   # @param [Object] value The value to match
   # @param [Array] matched_so_far The values that have been matched so far
   # @return [Boolean] Whether the subpattern matches the value
-  def match?(value, matched_so_far)
-    @evaluator.arity == 1 ? @evaluator.call(value) : @evaluator.call(value, matched_so_far)
+  def match?(value, matched_so_far = [])
+    key = [value, matched_so_far].hash
+    match ||= @matched[key] = (@evaluator.arity == 1 ? @evaluator.call(value) : @evaluator.call(value, matched_so_far))
+    match
   end
 end
