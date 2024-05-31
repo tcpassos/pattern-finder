@@ -18,7 +18,7 @@ class SubPatternNode
   def match(values)
     # Sort by the number of matched elements and return the first complete match
     match_recursively(values, []).sort_by { |match| match.flatten.size }.reverse.each do |match|
-      return match if match_complete?(match)
+      return remove_non_capture_groups(match) if match_complete?(match)
     end
     # Will return nil if no match is found
     # but if all subpatterns are optional, must return an array of empty arrays
@@ -47,22 +47,17 @@ class SubPatternNode
   def match_recursively(values, matched_so_far)
     return [] if values.empty?
 
-    # Match all values with children if the subpattern is optional
-    matched = @subpattern.optional ? match_nodes(@children, values, matched_so_far) : []
+    matched = match_optional_children(values, matched_so_far)
 
-    # If the first value matches the subpattern, continue matching with the remaining values
     if @subpattern.match?(values.first, matched_so_far)
       next_value, *remaining_values = values
-      nodes_to_match = @children.dup.unshift(self) if subpattern.repeat
+      nodes_to_match = @children.dup.unshift(self) if @subpattern.repeat
 
-      # Match the children with the remaining values
       new_matches = match_nodes(nodes_to_match || @children, remaining_values, matched_so_far, [next_value])
       matched.concat(new_matches)
-      # If no match was added, this is a leaf node, add [[next_value]]
-      matched << [[next_value]] if new_matches.empty?
+      matched << [[@subpattern.capture ? next_value : nil]] if new_matches.empty?
     end
 
-    # Return the matched elements
     matched
   end
 
@@ -73,6 +68,14 @@ class SubPatternNode
   end
 
   private
+
+  # (private) Match the optional children nodes
+  # @param [Array] values The values to match against
+  # @param [Array] matched_so_far The matched elements so far
+  # @return [Array] The matched elements
+  def match_optional_children(values, matched_so_far)
+    @subpattern.optional ? match_nodes(@children, values, matched_so_far) : []
+  end
 
   # (private) Match the nodes against a list of values
   # @param [Array] nodes The nodes to match against
@@ -96,6 +99,15 @@ class SubPatternNode
         end
         match
       end
+    end
+  end
+
+  # (private) Remove non-capture groups from the matched elements
+  # @param [Array] matched The matched elements
+  # @return [Array] The matched elements without non-capture groups
+  def remove_non_capture_groups(matched)
+    @subpatterns.zip(matched).each_with_object([]) do |(subpattern, match), result|
+      result << match if subpattern.capture
     end
   end
 

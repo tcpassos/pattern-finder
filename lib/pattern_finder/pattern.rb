@@ -19,10 +19,11 @@ class Pattern
   # @param [Proc] evaluator The evaluator to test the subpattern
   # @param [Boolean] optional Whether the subpattern is optional
   # @param [Boolean] repeat Whether the subpattern can be repeated
-  def add_subpattern_from_evaluator(evaluator, optional: false, repeat: false)
+  # @param [Boolean] capture Whether the subpattern should be captured in the match results
+  def add_subpattern_from_evaluator(evaluator, optional: false, repeat: false, capture: true)
     raise ArgumentError, 'Evaluator must be a Proc' unless evaluator.is_a?(Proc)
 
-    subpattern = SubPattern.new(evaluator, optional: optional, repeat: repeat)
+    subpattern = SubPattern.new(evaluator, optional: optional, repeat: repeat, capture: capture)
     add_subpattern(subpattern)
   end
 

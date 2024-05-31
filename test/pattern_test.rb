@@ -136,6 +136,24 @@ class TestPattern < Minitest::Test
 
     assert_nil pattern.match([])
   end
+
+  def test_pattern_with_non_capturing_and_mandatory_subpattern
+    pattern = Pattern.new
+    pattern.add_subpattern_from_evaluator(->(value) { value == 1 })
+    pattern.add_subpattern_from_evaluator(->(value) { value == 2 }, repeat: true, capture: false)
+    pattern.add_subpattern_from_evaluator(->(value) { value == 3 })
+
+    assert_equal([[1], [3]], pattern.match([1, 2, 3])&.matched)
+    assert_nil pattern.match([1, 4, 3]) # Should fail because 2 is mandatory
+    assert_equal([[1], [3]], pattern.match([1, 2, 2, 3])&.matched)
+
+    pattern = Pattern.new
+    pattern.add_subpattern_from_evaluator(->(value) { value.is_a?(String) }, repeat: true, capture: false)
+    pattern.add_subpattern_from_evaluator(->(value) { value.is_a?(Integer) })
+
+    assert_equal([[1]], pattern.match(['a', 'b', 1])&.matched)
+    assert_nil pattern.match(['a', 'b', 'c']) # Should fail because Integer is mandatory
+  end
 end
 # rubocop:enable Metrics/ClassLength
 

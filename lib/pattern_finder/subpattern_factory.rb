@@ -12,13 +12,13 @@ module SubPatternFactory
     self
   end
 
-  def contains(substring, optional: false, repeat: false)
-    add_subpattern(SubPattern.new(->(v) { v.to_s.include?(substring) }, optional: optional, repeat: repeat))
+  def value_eq(value, optional: false, repeat: false)
+    add_subpattern(SubPattern.new(->(v) { v == value }, optional: optional, repeat: repeat))
     self
   end
 
-  def value_eq(value, optional: false, repeat: false)
-    add_subpattern(SubPattern.new(->(v) { v == value }, optional: optional, repeat: repeat))
+  def value_neq(value, optional: false, repeat: false)
+    add_subpattern(SubPattern.new(->(v) { v != value }, optional: optional, repeat: repeat))
     self
   end
 
@@ -39,6 +39,11 @@ module SubPatternFactory
 
   def present(optional: false, repeat: false)
     add_subpattern(SubPattern.new(->(v) { !v.nil? && v != '' }, optional: optional, repeat: repeat))
+    self
+  end
+
+  def absent(optional: false, repeat: false)
+    add_subpattern(SubPattern.new(->(v) { v.nil? || v == '' }, optional: optional, repeat: repeat))
     self
   end
 end

@@ -2,16 +2,18 @@
 
 # Sub-pattern representation
 class SubPattern
-  attr_reader :evaluator, :optional, :repeat
+  attr_reader :evaluator, :optional, :repeat, :capture
 
   # Constructor
   # @param [Proc] evaluator The evaluator for the subpattern
   # @param [Boolean] optional Whether the subpattern is optional
   # @param [Boolean] repeat Whether the subpattern can repeat
-  def initialize(evaluator, optional: false, repeat: false)
+  # @param [Boolean] capture Whether the subpattern should be captured in the match results
+  def initialize(evaluator, optional: false, repeat: false, capture: true)
     @evaluator = evaluator
     @optional = optional
     @repeat = repeat
+    @capture = capture
     @matched = {}
   end
 
@@ -27,7 +29,8 @@ class SubPattern
       self_match && other_match
     end
 
-    SubPattern.new(combined_evaluator, optional: optional && other.optional, repeat: repeat && other.repeat)
+    SubPattern.new(combined_evaluator, optional: optional && other.optional,
+                                       repeat: repeat && other.repeat, capture: capture && other.capture)
   end
 
   # Combine this subpattern with another using logical OR
@@ -42,7 +45,7 @@ class SubPattern
       self_match || other_match
     end
 
-    SubPattern.new(combined_evaluator, optional: optional || other.optional, repeat: repeat || other.repeat)
+    SubPattern.new(combined_evaluator, optional: optional || other.optional, repeat: repeat || other.repeat, capture: capture || other.capture)
   end
 
   # Create a negative lookahead pattern
@@ -51,7 +54,7 @@ class SubPattern
       !match?(value, *args)
     end
 
-    SubPattern.new(negated_evaluator, optional: optional, repeat: repeat)
+    SubPattern.new(negated_evaluator, optional: optional, repeat: repeat, capture: capture)
   end
 
   # Check if the subpattern matches a value
