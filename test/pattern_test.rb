@@ -137,6 +137,15 @@ class TestPattern < Minitest::Test
     assert_nil pattern.match([])
   end
 
+  def test_pattern_with_repeated_values
+    pattern = Pattern.new
+    pattern.add_subpattern_from_evaluator(->(value) { value == 1 }, repeat: true, optional: true)
+    pattern.add_subpattern_from_evaluator(->(_) { true }, repeat: true)
+    pattern.add_subpattern_from_evaluator(->(value) { value == 3 })
+
+    assert_equal([[1, 1], [2], [3]], pattern.match([1, 1, 2, 3])&.matched)
+  end
+
   def test_pattern_with_non_capturing_and_mandatory_subpattern
     pattern = Pattern.new
     pattern.add_subpattern_from_evaluator(->(value) { value == 1 })

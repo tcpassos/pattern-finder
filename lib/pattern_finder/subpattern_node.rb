@@ -17,14 +17,13 @@ class SubPatternNode
   # @return [Array, nil] The matched elements or nil if the node doesn't match
   def match(values)
     # Sort by the number of matched elements and return the first complete match
-    match_recursively(values, []).sort_by { |match| match.flatten.size }.reverse.each do |match|
-      return remove_non_capture_groups(match) if match_complete?(match)
+    matches, final_position = match_recursively(values, [])
+    matches.sort_by { |match| match.flatten.size }.reverse_each do |match|
+      return [remove_non_capture_groups(match), final_position] if match_complete?(match)
     end
-    # Will return nil if no match is found
-    # but if all subpatterns are optional, must return an array of empty arrays
-    return Array.new(@subpatterns.size) { [] } if @subpatterns.all?(&:optional)
+    return [Array.new(@subpatterns.size) { [] }, values.size] if @subpatterns.all?(&:optional)
 
-    nil
+    [nil, final_position]
   end
 
   # Push a node to the tree
@@ -43,22 +42,28 @@ class SubPatternNode
   # This method returns every possible match, even if it's incomplete
   # @param [Array] values The values to match against
   # @param [Array] matched_so_far The matched elements so far
-  # @return [Array] The matched elements
+  # @return [Array, Integer] The matched elements and the final position
   def match_recursively(values, matched_so_far)
-    return [] if values.empty?
+    return [[], 0] if values.empty?
 
-    matched = match_optional_children(values, matched_so_far)
+    # If node is optional, match all the values for the children
+    matched = []
+    matched += match_nodes(@children, values, matched_so_far).first if @subpattern.optional
+    final_position = matched_so_far.size
 
     if @subpattern.match?(values.first, matched_so_far)
       next_value, *remaining_values = values
-      nodes_to_match = @children.dup.unshift(self) if @subpattern.repeat
+      nodes_to_match = @children.dup
+      nodes_to_match.unshift(self) if @subpattern.repeat
 
-      new_matches = match_nodes(nodes_to_match || @children, remaining_values, matched_so_far, [next_value])
+      new_matches, final_pos = match_nodes(nodes_to_match, remaining_values, matched_so_far, [next_value])
+
       matched.concat(new_matches)
+      final_position = final_pos + 1
       matched << [[@subpattern.capture ? next_value : nil]] if new_matches.empty?
     end
 
-    matched
+    [matched, final_position]
   end
 
   # (protected) Check if the node has a subpattern that is not optional ahead
@@ -69,26 +74,21 @@ class SubPatternNode
 
   private
 
-  # (private) Match the optional children nodes
-  # @param [Array] values The values to match against
-  # @param [Array] matched_so_far The matched elements so far
-  # @return [Array] The matched elements
-  def match_optional_children(values, matched_so_far)
-    @subpattern.optional ? match_nodes(@children, values, matched_so_far) : []
-  end
-
   # (private) Match the nodes against a list of values
   # @param [Array] nodes The nodes to match against
   # @param [Array] values The values to match against
   # @param [Array] matched_so_far The matched elements so far
   # @param [Array] new_value The new value matched
-  # @return [Array] The matched elements
+  # @return [Array, Integer] The matched elements and the final position
   def match_nodes(nodes, values, matched_so_far, new_value = [])
-    nodes.flat_map do |node|
-      #                      | Update matched_so_far with the last matched value
-      #                      v                          v
-      node.match_recursively(values, (matched_so_far + new_value)).map do |match|
+    matches = []
+    final_position = matched_so_far.size
+    nodes.each do |node|
+      node_matches, node_final_pos = node.match_recursively(values, matched_so_far + new_value)
+      node_matches.each do |match|
         if node == self
+          # Ensure we are working with a duplicate of the match to avoid shared references
+          match = match.map(&:dup)
           # [v1, new_value] [v2] [v3]
           #      ^^^^^^^^^ Adds the new value togheter with the same group of this node
           match.first.unshift(new_value.first)
@@ -97,9 +97,11 @@ class SubPatternNode
           # ^^^^^^^^^^^ Adds the new value as a new group representing this node
           match.unshift(new_value)
         end
-        match
+        matches << match
       end
+      final_position = node_final_pos + new_value.size
     end
+    [matches, final_position]
   end
 
   # (private) Remove non-capture groups from the matched elements

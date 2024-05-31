@@ -2,7 +2,7 @@
 
 # Sub-pattern representation
 class SubPattern
-  attr_reader :evaluator, :optional, :repeat, :capture
+  attr_reader :evaluator, :optional, :repeat, :capture, :matched_cache
 
   # Constructor
   # @param [Proc] evaluator The evaluator for the subpattern
@@ -14,7 +14,7 @@ class SubPattern
     @optional = optional
     @repeat = repeat
     @capture = capture
-    @matched = {}
+    @matched_cache = {}
   end
 
   # Combine this subpattern with another using logical AND
@@ -45,7 +45,8 @@ class SubPattern
       self_match || other_match
     end
 
-    SubPattern.new(combined_evaluator, optional: optional || other.optional, repeat: repeat || other.repeat, capture: capture || other.capture)
+    SubPattern.new(combined_evaluator, optional: optional || other.optional,
+                                       repeat: repeat || other.repeat, capture: capture || other.capture)
   end
 
   # Create a negative lookahead pattern
@@ -63,10 +64,10 @@ class SubPattern
   # @return [Boolean] Whether the subpattern matches the value
   def match?(value, matched_so_far = [])
     key = [value, matched_so_far].hash
-    return @matched[key] if @matched.key?(key)
+    return @matched_cache[key] if @matched_cache.key?(key)
 
     match = @evaluator.arity == 1 ? @evaluator.call(value) : @evaluator.call(value, matched_so_far)
-    @matched[key] = match
+    @matched_cache[key] = match
     match
   end
 end

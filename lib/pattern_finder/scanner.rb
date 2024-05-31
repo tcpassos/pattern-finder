@@ -31,9 +31,9 @@ class Scanner
   # @param [Pattern] pattern The pattern to match
   # @return [Array, nil] The matched values or nil if the pattern doesn't match
   def scan(pattern)
-    result = pattern.match(@values[@pos..])&.matched_flattened
-    @pos += result.size + 1 unless result.nil?
-    result
+    result, final_pos = pattern.match_with_position(@values[@pos..])
+    @pos += (final_pos + 1) unless result.nil?
+    result.matched_flattened
   end
 
   # Scans the values until the pattern is matched.
@@ -42,13 +42,15 @@ class Scanner
   # @param [Pattern] pattern The pattern to match
   # @return [Array, nil] The matched values or nil if the pattern doesn't match
   def scan_until(pattern)
-    pos = @pos
-    until (result = pattern.match(@values[pos..])&.matched_flattened) || pos >= @values.size
-      pos += 1
+    initial_pos = @pos
+    until initial_pos >= @values.size
+      result, final_pos = pattern.match_with_position(@values[initial_pos..])
+      if result
+        @pos = initial_pos + final_pos + 1
+        return result.matched_flattened
+      end
+      initial_pos += 1
     end
-    return if result.nil?
-
-    @pos += result.size + 1
-    result
+    nil
   end
 end
