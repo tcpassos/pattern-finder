@@ -16,9 +16,9 @@ class SubPatternNode
   # @param [Array] values The values to match against
   # @return [Array, nil] The matched elements or nil if the node doesn't match
   def match(values)
-    # Sort by the number of matched elements and return the first complete match
     matches, final_position = match_recursively(values, [])
-    matches.sort_by { |match| match.flatten.size }.reverse_each do |match|
+    # Sort matches by the size of each subarray in descending order
+    matches.sort_by { |match| match.map { |subarray| -subarray.size } }.each do |match|
       return [remove_non_capture_groups(match), final_position] if match_complete?(match)
     end
     return [Array.new(@subpatterns.size) { [] }, values.size] if @subpatterns.all?(&:optional)
@@ -60,7 +60,7 @@ class SubPatternNode
 
       matched.concat(new_matches)
       final_position = final_pos + 1
-      matched << [[@subpattern.capture ? next_value : nil]] if new_matches.empty?
+      matched << [[next_value]] if new_matches.empty?
     end
 
     [matched, final_position]
@@ -90,7 +90,7 @@ class SubPatternNode
           # Ensure we are working with a duplicate of the match to avoid shared references
           match = match.map(&:dup)
           # [v1, new_value] [v2] [v3]
-          #      ^^^^^^^^^ Adds the new value togheter with the same group of this node
+          #      ^^^^^^^^^ Adds the new value together with the same group of this node
           match.first.unshift(new_value.first)
         else
           # [new_value] [v2] [v3]
@@ -118,6 +118,8 @@ class SubPatternNode
   # @param [Array] matched_elements The matched elements
   # @return [Boolean] Whether all elements matched
   def match_complete?(matched_elements)
+    return false if matched_elements.size != @subpatterns.size
+
     @subpatterns.zip(matched_elements).all? do |subpattern, matched|
       (subpattern.optional || matched&.any?) && (subpattern.repeat || matched&.size.to_i <= 1)
     end
