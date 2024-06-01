@@ -43,18 +43,18 @@ class Pattern
   # @param [Array] values The values to match against
   # @return [Array, nil] The matched elements or nil if the pattern doesn't match
   def match(values)
-    match_with_position(values)&.first
+    match_next_position(values)&.first
   end
 
   # Matches the pattern against the values and returns the matched elements and the final position.
   # @param [Array] values The values to match against
   # @return [[Array, Integer], nil] The matched elements and the final position, or nil if no match
-  def match_with_position(values)
+  def match_next_position(values)
     raise ArgumentError, 'Values must be an array' unless values.is_a?(Array)
     return unless @root
 
-    matched_elements, final_position = @root.match(values)
-    [PatternMatch.new(matched_elements), final_position] if matched_elements
+    matched_elements, next_position = @root.match(values)
+    [PatternMatch.new(matched_elements), next_position] if matched_elements
   end
 
   # Check if the pattern matches a list of values
