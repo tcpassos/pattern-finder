@@ -48,7 +48,7 @@ class Pattern
 
   # Matches the pattern against the values and returns the matched elements and the final position.
   # @param [Array] values The values to match against
-  # @return [[Array, Integer], nil] The matched elements and the final position, or nil if no match
+  # @return [[Array, Integer], nil] The matched elements and the next position, or nil if no match
   def match_next_position(values)
     raise ArgumentError, 'Values must be an array' unless values.is_a?(Array)
     return unless @root
