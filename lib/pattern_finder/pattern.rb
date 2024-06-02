@@ -15,27 +15,23 @@ class Pattern
     instance_eval(&block) if block
   end
 
-  # Add a subpattern to the pattern with a custom evaluator
-  # @param [Proc] evaluator The evaluator to test the subpattern
-  # @param [Boolean] optional Whether the subpattern is optional
-  # @param [Boolean] repeat Whether the subpattern can be repeated
-  # @param [Boolean] capture Whether the subpattern should be captured in the match results
-  def add_subpattern_from_evaluator(evaluator, optional: false, repeat: false, capture: true)
-    raise ArgumentError, 'Evaluator must be a Proc' unless evaluator.is_a?(Proc)
-
-    subpattern = SubPattern.new(evaluator, optional: optional, repeat: repeat, capture: capture)
-    add_subpattern(subpattern)
-  end
-
   # Add a subpattern to the pattern
   # @param [SubPattern] subpattern The subpattern to add
   def add_subpattern(subpattern)
-    raise ArgumentError, 'Subpattern must be a SubPattern instance' unless subpattern.is_a?(SubPattern)
-
     if @root
       @root.push_node(SubPatternNode.new(subpattern))
     else
       @root = SubPatternNode.new(subpattern)
+    end
+  end
+
+  # Add a node to the pattern
+  # @param [SubPatternNode] node The node to add
+  def add_node(node)
+    if @root
+      @root.push_node(node)
+    else
+      @root = node
     end
   end
 

@@ -7,6 +7,8 @@ class SubPatternNode
   # Constructor
   # @param [SubPattern] subpattern The subpattern of the node
   def initialize(subpattern)
+    raise ArgumentError, 'Subpattern must be a SubPattern instance' unless subpattern.is_a?(SubPattern)
+
     @subpattern = subpattern
     @subpatterns = [subpattern]
     @children = []

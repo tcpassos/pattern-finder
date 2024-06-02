@@ -2,47 +2,65 @@
 
 # Collection of methods to create subpatterns
 module SubPatternFactory
-  def any(optional: false, repeat: false, capture: true, &additional_evaluator)
+  def any(**options, &additional_evaluator)
     evaluator = ->(v) { additional_evaluator.nil? || additional_evaluator.call(v) }
-    add_subpattern(SubPattern.new(evaluator, optional: optional, repeat: repeat, capture: capture))
+    add_subpattern(SubPattern.new(evaluator, **options))
     self
   end
 
-  def any_opt(repeat: false, capture: true, &additional_evaluator)
+  def any_opt(**options, &additional_evaluator)
     evaluator = ->(v) { additional_evaluator.nil? || additional_evaluator.call(v) }
-    add_subpattern(SubPattern.new(evaluator, optional: true, repeat: repeat, capture: capture))
+    add_subpattern(SubPattern.new(evaluator, optional: true, **options))
     self
   end
 
-  def value_eq(value, optional: false, repeat: false, capture: true)
-    add_subpattern(SubPattern.new(->(v) { v == value }, optional: optional, repeat: repeat, capture: capture))
+  def value_eq(value, **options)
+    add_subpattern(SubPattern.new(->(v) { v == value }, **options))
     self
   end
 
-  def value_neq(value, optional: false, repeat: false, capture: true)
-    add_subpattern(SubPattern.new(->(v) { v != value }, optional: optional, repeat: repeat, capture: capture))
+  def value_eq_opt(value, **options)
+    add_subpattern(SubPattern.new(->(v) { v == value }, optional: true, **options))
     self
   end
 
-  def value_in(range, optional: false, repeat: false, capture: true)
-    add_subpattern(SubPattern.new(->(v) { range.include?(v) }, optional: optional, repeat: repeat, capture: capture))
+  def value_neq(value, **options)
+    add_subpattern(SubPattern.new(->(v) { v != value }, **options))
     self
   end
 
-  def value_is_a(type, optional: false, repeat: false, capture: true)
-    add_subpattern(SubPattern.new(->(v) { v.is_a?(type) }, optional: optional, repeat: repeat, capture: capture))
+  def value_neq_opt(value, **options)
+    add_subpattern(SubPattern.new(->(v) { v != value }, optional: true, **options))
     self
   end
 
-  def present(optional: false, repeat: false, capture: true)
-    add_subpattern(SimpleSubPattern.new(->(v) { !v.nil? && v != '' }, optional: optional, repeat: repeat,
-                                                                      capture: capture))
+  def value_in(range, **options)
+    add_subpattern(SubPattern.new(->(v) { range.include?(v) }, **options))
     self
   end
 
-  def absent(optional: false, repeat: false, capture: true)
-    add_subpattern(SimpleSubPattern.new(->(v) { v.nil? || v == '' }, optional: optional, repeat: repeat,
-                                                                     capture: capture))
+  def value_in_opt(range, **options)
+    add_subpattern(SubPattern.new(->(v) { range.include?(v) }, optional: true, **options))
+    self
+  end
+
+  def value_is_a(type, **options)
+    add_subpattern(SubPattern.new(->(v) { v.is_a?(type) }, **options))
+    self
+  end
+
+  def value_is_a_opt(type, **options)
+    add_subpattern(SubPattern.new(->(v) { v.is_a?(type) }, optional: true, **options))
+    self
+  end
+
+  def present(**options)
+    add_subpattern(SubPattern.new(->(v) { !v.nil? && v != '' }, **options))
+    self
+  end
+
+  def absent(**options)
+    add_subpattern(SubPattern.new(->(v) { v.nil? || v == '' }, **options))
     self
   end
 end

@@ -10,6 +10,8 @@ class SubPattern
   # @param [Boolean] repeat Whether the subpattern can repeat
   # @param [Boolean] capture Whether the subpattern should be captured in the match results
   def initialize(evaluator, optional: false, repeat: false, capture: true)
+    raise ArgumentError, 'Evaluator must be a Proc' unless evaluator.is_a?(Proc)
+
     @evaluator = evaluator
     @optional = optional
     @repeat = repeat
