@@ -58,7 +58,10 @@ class SubPatternNode
     matched, positions = @subpattern.optional ? match_nodes(@children, values, matched_so_far, position) : [[], []]
 
     if @subpattern.match?(values[position], matched_so_far, values, position)
-      next_position, nodes_to_match = prepare_for_next_match(position)
+      next_position = position + 1
+      nodes_to_match = @children.dup
+      nodes_to_match.unshift(self) if @subpattern.repeat
+
       new_matches, new_positions = match_nodes(nodes_to_match, values, matched_so_far,
                                                next_position, [values[position]])
       matched.concat(new_matches.empty? ? [[[values[position]]]] : new_matches)
@@ -69,18 +72,6 @@ class SubPatternNode
   end
 
   private
-
-  # (private) Prepare the nodes and position for the next match
-  # @param [Integer] current_position The current position in the values array
-  # @return [Array] The next position and the nodes to match
-  def prepare_for_next_match(current_position)
-    nodes_to_match = @children.dup
-    next_position = current_position
-    next_position += 1
-    nodes_to_match.unshift(self) if @subpattern.repeat
-
-    [next_position, nodes_to_match]
-  end
 
   # (private) Match the nodes against a list of values
   # @param [Array] nodes The nodes to match against
