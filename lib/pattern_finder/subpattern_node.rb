@@ -31,12 +31,12 @@ class SubPatternNode
   end
 
   # Push a node to the tree
-  # @param [Node] node The node to push
+  # @param [SubPatternNode] node The node to push
   def push_node(node)
-    unless node == self
-      @subpatterns << node.subpattern
-      @children << node unless mandatory_ahead?
-    end
+    return if node == self
+
+    @subpatterns += node.subpatterns
+    @children << node unless mandatory_ahead?
     @children.each { |child| child.push_node(node) }
   end
 
