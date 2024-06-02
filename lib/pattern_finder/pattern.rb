@@ -7,17 +7,36 @@ require_relative 'subpattern_factory'
 # Represents a pattern to match against a list of values
 class Pattern
   include SubPatternFactory
-  attr_reader :root
+  attr_reader :root, :global_options
 
   # Constructor
   # @param [Proc] block The block to evaluate
   def initialize(&block)
+    @global_options = {}
     instance_eval(&block) if block
+  end
+
+  # Set global options for the pattern
+  # @param [Hash] options The options to set globally
+  def set_options(options = {})
+    @global_options.merge!(options)
+    self
+  end
+
+  # Begin a block with a new set of options
+  # @param [Hash] options The options to set for the block
+  # @param [Proc] block The block to evaluate
+  def begin_block(options = {}, &block)
+    previous_options = @global_options.dup
+    set_options(options)
+    instance_eval(&block)
+    @global_options = previous_options
   end
 
   # Add a node to the pattern
   # @param [SubPattern] node The node to add
   def add_node(node)
+    node.set_options(@global_options)
     if @root
       @root.push_node(node)
     else

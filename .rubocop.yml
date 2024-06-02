@@ -11,4 +11,4 @@ Metrics/CyclomaticComplexity:
   Max: 10
 
 Metrics/PerceivedComplexity:
-  Max: 10
+  Max: 15

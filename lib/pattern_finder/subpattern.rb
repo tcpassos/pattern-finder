@@ -2,25 +2,57 @@
 
 # Sub-pattern representation
 class SubPattern
-  attr_reader :evaluator, :children, :subpatterns, :optional, :repeat, :capture, :matched_cache, :allow_gaps
+  attr_reader :evaluator, :children, :subpatterns, :matched_cache,
+              :optional, :repeat, :capture,
+              :allow_gaps, :stop_condition
 
   # Constructor
   # @param [Proc] evaluator The evaluator for the subpattern
-  # @param [Boolean] optional Whether the subpattern is optional
-  # @param [Boolean] repeat Whether the subpattern can repeat
-  # @param [Boolean] capture Whether the subpattern should be captured in the match results
-  # @param [Boolean] allow_gaps Whether the node allows gaps
-  def initialize(evaluator, optional: false, repeat: false, capture: true, allow_gaps: nil)
+  # @param [Hash] options The options for the subpattern
+  def initialize(evaluator, options = {})
     raise ArgumentError, 'Evaluator must be a Proc' unless evaluator.is_a?(Proc)
 
     @evaluator = evaluator
     @children = []
     @subpatterns = [self]
-    @optional = optional
-    @repeat = repeat
-    @capture = capture
-    @allow_gaps = allow_gaps
     @matched_cache = {}
+
+    @optional = options.fetch(:optional, false)
+    @repeat = options.fetch(:repeat, false)
+    @capture = options.fetch(:capture, true)
+    @allow_gaps = options.fetch(:allow_gaps, nil)
+    @stop_condition = options.fetch(:stop_condition, nil)
+  end
+
+  # Set options for the subpattern
+  # @param [Hash] options The options to set
+  def set_options(options = {})
+    @allow_gaps = options.fetch(:allow_gaps, @allow_gaps)
+    @stop_condition = options.fetch(:stop_condition, @stop_condition)
+  end
+
+  # Propagate options to children
+  def propagate_options
+    @children.each do |child|
+      child.set_options(allow_gaps: @allow_gaps, stop_condition: @stop_condition)
+      child.propagate_options
+    end
+  end
+
+  # Push a node to the tree
+  # @param [SubPattern] node The node to push
+  def push_node(node)
+    return if node == self
+
+    # Set options for the new node
+    node.set_options(allow_gaps: @allow_gaps, stop_condition: @stop_condition)
+
+    # Propagate the allow_gaps flag to the children if it's not set
+    node.instance_variable_set(:@allow_gaps, @allow_gaps) if node.allow_gaps.nil?
+
+    @subpatterns += node.subpatterns
+    @children << node unless mandatory_ahead?
+    @children.each { |child| child.push_node(node) }
   end
 
   # Match the node against a list of values
@@ -37,19 +69,6 @@ class SubPattern
     return [Array.new(@subpatterns.size) { [] }, 0] if @subpatterns.all?(&:optional)
 
     [nil, 0]
-  end
-
-  # Push a node to the tree
-  # @param [SubPattern] node The node to push
-  def push_node(node)
-    return if node == self
-
-    # Propagate the allow_gaps flag to the children if it's not set
-    node.instance_variable_set(:@allow_gaps, @allow_gaps) if node.allow_gaps.nil?
-
-    @subpatterns += node.subpatterns
-    @children << node unless mandatory_ahead?
-    @children.each { |child| child.push_node(node) }
   end
 
   protected
@@ -82,6 +101,9 @@ class SubPattern
       matched.concat(new_matches.empty? ? [[[current_value]]] : new_matches)
       positions.concat(new_positions.empty? ? [next_position] : new_positions)
     elsif @allow_gaps
+      # Verificar condição de parada
+      return [[], [position]] if @stop_condition&.call(current_value)
+
       new_matches, new_positions = match_recursively(values, next_position, matched_so_far)
       matched.concat(new_matches)
       positions.concat(new_positions)

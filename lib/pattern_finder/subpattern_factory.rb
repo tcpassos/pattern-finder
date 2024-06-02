@@ -14,6 +14,12 @@ module SubPatternFactory
     self
   end
 
+  def none(**options, &additional_evaluator)
+    evaluator = ->(v) { additional_evaluator.nil? || !additional_evaluator.call(v) }
+    add_node(SubPattern.new(evaluator, **options))
+    self
+  end
+
   def value_eq(value, **options)
     add_node(SubPattern.new(->(v) { v == value }, **options))
     self
