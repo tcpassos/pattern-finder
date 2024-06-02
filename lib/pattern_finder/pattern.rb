@@ -15,18 +15,8 @@ class Pattern
     instance_eval(&block) if block
   end
 
-  # Add a subpattern to the pattern
-  # @param [SubPattern] subpattern The subpattern to add
-  def add_subpattern(subpattern)
-    if @root
-      @root.push_node(SubPatternNode.new(subpattern))
-    else
-      @root = SubPatternNode.new(subpattern)
-    end
-  end
-
   # Add a node to the pattern
-  # @param [SubPatternNode] node The node to add
+  # @param [SubPattern] node The node to add
   def add_node(node)
     if @root
       @root.push_node(node)
