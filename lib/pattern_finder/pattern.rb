@@ -23,14 +23,23 @@ class Pattern
     self
   end
 
-  # Begin a block with a new set of options
-  # @param [Hash] options The options to set for the block
+  # Set global options for the pattern within a block
+  # @param [Hash] options The options to set globally
   # @param [Proc] block The block to evaluate
-  def begin_block(options = {}, &block)
+  def with_options(options = {}, &block)
     previous_options = @global_options.dup
     set_options(options)
     instance_eval(&block)
     @global_options = previous_options
+  end
+
+  # Set global options for the pattern within a block, allowing gaps until a stop condition is met
+  # @param [Proc] gap_break_condition The stop condition
+  # @param [Proc] block The block to evaluate
+  def allow_gaps_until(gap_break_condition, &block)
+    raise ArgumentError, 'Stop condition must be a Proc' unless gap_break_condition.is_a?(Proc)
+
+    with_options(allow_gaps: true, gap_break_condition: gap_break_condition, &block)
   end
 
   # Add a node to the pattern

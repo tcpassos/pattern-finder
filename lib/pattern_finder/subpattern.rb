@@ -4,7 +4,7 @@
 class SubPattern
   attr_reader :evaluator, :children, :subpatterns, :matched_cache,
               :optional, :repeat, :capture,
-              :allow_gaps, :stop_condition
+              :allow_gaps, :gap_break_condition
 
   # Constructor
   # @param [Proc] evaluator The evaluator for the subpattern
@@ -21,22 +21,14 @@ class SubPattern
     @repeat = options.fetch(:repeat, false)
     @capture = options.fetch(:capture, true)
     @allow_gaps = options.fetch(:allow_gaps, nil)
-    @stop_condition = options.fetch(:stop_condition, nil)
+    @gap_break_condition = options.fetch(:gap_break_condition, nil)
   end
 
   # Set options for the subpattern
   # @param [Hash] options The options to set
   def set_options(options = {})
     @allow_gaps = options.fetch(:allow_gaps, @allow_gaps)
-    @stop_condition = options.fetch(:stop_condition, @stop_condition)
-  end
-
-  # Propagate options to children
-  def propagate_options
-    @children.each do |child|
-      child.set_options(allow_gaps: @allow_gaps, stop_condition: @stop_condition)
-      child.propagate_options
-    end
+    @gap_break_condition = options.fetch(:gap_break_condition, @gap_break_condition)
   end
 
   # Push a node to the tree
@@ -45,7 +37,7 @@ class SubPattern
     return if node == self
 
     # Set options for the new node
-    node.set_options(allow_gaps: @allow_gaps, stop_condition: @stop_condition)
+    node.set_options(allow_gaps: @allow_gaps, gap_break_condition: @gap_break_condition)
 
     # Propagate the allow_gaps flag to the children if it's not set
     node.instance_variable_set(:@allow_gaps, @allow_gaps) if node.allow_gaps.nil?
@@ -72,6 +64,14 @@ class SubPattern
   end
 
   protected
+
+  # (protected) Propagate options to children
+  def propagate_options
+    @children.each do |child|
+      child.set_options(allow_gaps: @allow_gaps, gap_break_condition: @gap_break_condition)
+      child.propagate_options
+    end
+  end
 
   # (protected) Check if the node has a child that is not optional ahead
   # @return [Boolean] Whether the node has a mandatory subpattern ahead
@@ -101,7 +101,7 @@ class SubPattern
 
       matched.concat(new_matches.empty? ? [[[current_value]] + Array.new(@children.size) { [] }] : new_matches)
       positions.concat(new_positions.empty? ? [next_position] : new_positions)
-    elsif @allow_gaps && !@stop_condition&.call(current_value)
+    elsif @allow_gaps && !@gap_break_condition&.call(current_value)
       new_matches, new_positions = match_recursively(values, next_position, matched_so_far)
       matched.concat(new_matches)
       positions.concat(new_positions)
