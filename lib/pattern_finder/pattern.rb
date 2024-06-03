@@ -16,11 +16,41 @@ class Pattern
     instance_eval(&block) if block
   end
 
+  # Get a subpattern by index or name
+  # @param identifier [Integer, Symbol] The index or name of the subpattern
+  # @return [SubPattern, nil] The subpattern or nil if not found
+  def [](identifier)
+    index = case identifier
+            when Integer
+              identifier
+            when Symbol
+              subpatterns.find_index { |sp| sp.name == identifier }
+            end
+    subpatterns[index] if index
+  end
+
   # Set global options for the pattern
   # @param options [Hash] The options to set globally
   def set_options(options = {})
     @global_options.merge!(options)
     self
+  end
+
+  # Set options for specific subpatterns
+  # @param identifiers [Array<Integer, Symbol>, Range] The identifiers of the subpatterns to set the options
+  # @param options [Hash] The options to set
+  def set_options_for(identifiers, options)
+    subpatterns_to_update = case identifiers
+                            when Range
+                              subpatterns[identifiers]
+                            when Array
+                              if identifiers.first.is_a?(Symbol)
+                                identifiers.map { |name| subpatterns.find { |sp| sp.name == name } }
+                              else
+                                subpatterns.values_at(*identifiers)
+                              end
+                            end
+    subpatterns_to_update.compact.each { |subpattern| subpattern.set_options(options) }
   end
 
   # Set global options for the pattern within a block
@@ -31,15 +61,6 @@ class Pattern
     set_options(options)
     instance_eval(&block)
     @global_options = previous_options
-  end
-
-  # Set global options for the pattern within a block, allowing gaps until a stop condition is met
-  # @param gap_break_condition [Proc] The stop condition
-  # @param block [Proc] The block to evaluate
-  def allow_gaps_until(gap_break_condition, &block)
-    raise ArgumentError, 'Stop condition must be a Proc' unless gap_break_condition.is_a?(Proc)
-
-    with_options(allow_gaps: true, gap_break_condition: gap_break_condition, &block)
   end
 
   # Add a node to the pattern
