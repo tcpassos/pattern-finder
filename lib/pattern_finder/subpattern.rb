@@ -122,7 +122,7 @@ class SubPattern
     key = [value, matched_so_far, position].hash
     return @matched_cache[key] if @matched_cache.key?(key)
 
-    args = [@evaluator.arity, 4].min.times.map { |i| [value, matched_so_far, all_values, position][i] }
+    args = Array.new([@evaluator.arity, 4].min) { |i| [value, matched_so_far, all_values, position][i] }
     match = @evaluator.call(*args)
     @matched_cache[key] = match
     match

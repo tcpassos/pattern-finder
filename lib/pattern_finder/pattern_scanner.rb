@@ -3,7 +3,7 @@
 require_relative 'pattern'
 
 # A pattern finder that matches a pattern against a list of values
-class Scanner
+class PatternScanner
   attr_reader :values, :matched
   attr_accessor :pos
 

@@ -3,4 +3,4 @@
 require_relative 'pattern_finder/subpattern'
 require_relative 'pattern_finder/subpattern_factory'
 require_relative 'pattern_finder/pattern'
-require_relative 'pattern_finder/scanner'
+require_relative 'pattern_finder/pattern_scanner'
