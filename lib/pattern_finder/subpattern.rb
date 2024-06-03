@@ -3,7 +3,7 @@
 # Sub-pattern representation
 class SubPattern
   attr_reader :evaluator, :children, :subpatterns, :matched_cache,
-              :optional, :repeat, :capture,
+              :name, :optional, :repeat, :capture,
               :allow_gaps, :gap_break_condition
 
   # Constructor
@@ -17,6 +17,7 @@ class SubPattern
     @subpatterns = [self]
     @matched_cache = {}
 
+    @name = options.fetch(:name, nil)
     @optional = options.fetch(:optional, false)
     @repeat = options.fetch(:repeat, false)
     @capture = options.fetch(:capture, true)
@@ -27,8 +28,9 @@ class SubPattern
   # Set options for the subpattern
   # @param options [Hash] The options to set
   def set_options(options = {})
-    @allow_gaps = options.fetch(:allow_gaps, @allow_gaps)
-    @gap_break_condition = options.fetch(:gap_break_condition, @gap_break_condition)
+    options.each_key do |key|
+      instance_variable_set("@#{key}", options.fetch(key, instance_variable_get("@#{key}")))
+    end
   end
 
   # Push a node to the tree
@@ -36,11 +38,9 @@ class SubPattern
   def push_node(node)
     return if node == self
 
-    # Set options for the new node
-    node.set_options(allow_gaps: @allow_gaps, gap_break_condition: @gap_break_condition)
-
     # Propagate the allow_gaps flag to the children if it's not set
-    node.instance_variable_set(:@allow_gaps, @allow_gaps) if node.allow_gaps.nil?
+    node.set_options(allow_gaps: @allow_gaps) if node.allow_gaps.nil?
+    node.set_options(gap_break_condition: @gap_break_condition) if node.gap_break_condition.nil?
 
     @subpatterns += node.subpatterns
     @children << node unless mandatory_ahead?

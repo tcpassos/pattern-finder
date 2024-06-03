@@ -4,7 +4,7 @@ require_relative 'pattern'
 
 # A pattern finder that matches a pattern against a list of values
 class PatternScanner
-  attr_reader :values, :matched
+  attr_reader :values
   attr_accessor :pos
 
   # Constructor
@@ -33,7 +33,7 @@ class PatternScanner
   def scan(pattern)
     result, next_pos = pattern.match_next_position(@values[@pos..])
     @pos += next_pos if next_pos&.nonzero?
-    result&.matched_flattened
+    result
   end
 
   # Scans the values until the pattern is matched.
@@ -47,7 +47,7 @@ class PatternScanner
       result, next_pos = pattern.match_next_position(@values[initial_pos..])
       if next_pos&.nonzero?
         @pos = initial_pos + next_pos
-        return result.matched_flattened
+        return result
       end
       initial_pos += 1
     end
