@@ -101,7 +101,7 @@ class SubPattern
 
       matched.concat(new_matches.empty? ? [[[current_value]] + Array.new(@children.size) { [] }] : new_matches)
       positions.concat(new_positions.empty? ? [next_position] : new_positions)
-    elsif @allow_gaps && !@gap_break_condition&.call(current_value)
+    elsif @allow_gaps && !@gap_break_condition&.call(current_valuem, matched_so_far, values, position)
       new_matches, new_positions = match_recursively(values, next_position, matched_so_far)
       matched.concat(new_matches)
       positions.concat(new_positions)

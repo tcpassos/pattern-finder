@@ -31,6 +31,7 @@ class Pattern
 
   # Set global options for the pattern
   # @param options [Hash] The options to set globally
+  # @return [Pattern] The pattern
   def set_options(options = {})
     @global_options.merge!(options)
     self
