@@ -7,8 +7,8 @@ class SubPattern
               :allow_gaps, :gap_break_condition
 
   # Constructor
-  # @param [Proc] evaluator The evaluator for the subpattern
-  # @param [Hash] options The options for the subpattern
+  # @param evaluator [Proc] The evaluator for the subpattern
+  # @param options [Hash] The options for the subpattern
   def initialize(evaluator, options = {})
     raise ArgumentError, 'Evaluator must be a Proc' unless evaluator.is_a?(Proc)
 
@@ -25,14 +25,14 @@ class SubPattern
   end
 
   # Set options for the subpattern
-  # @param [Hash] options The options to set
+  # @param options [Hash] The options to set
   def set_options(options = {})
     @allow_gaps = options.fetch(:allow_gaps, @allow_gaps)
     @gap_break_condition = options.fetch(:gap_break_condition, @gap_break_condition)
   end
 
   # Push a node to the tree
-  # @param [SubPattern] node The node to push
+  # @param node [SubPattern] The node to push
   def push_node(node)
     return if node == self
 
@@ -48,7 +48,7 @@ class SubPattern
   end
 
   # Match the node against a list of values
-  # @param [Array] values The values to match against
+  # @param values [Array] The values to match against
   # @return [Array, nil] The matched elements or nil if the node doesn't match
   def match(values)
     matches, next_positions = match_recursively(values, 0)
@@ -81,9 +81,9 @@ class SubPattern
 
   # (protected) Match the node against a list of values recursively
   # This method returns every possible match, even if it's incomplete
-  # @param [Array] values The values to match against
-  # @param [Integer] position The current position in the values array
-  # @param [Array] matched_so_far The matched elements so far
+  # @param values [Array] The values to match against
+  # @param position [Integer] The current position in the values array
+  # @param matched_so_far [Array] The matched elements so far
   # @return [Array, Array<Integer>] The matched elements and the next positions
   def match_recursively(values, position, matched_so_far = [])
     return [[], [position]] if position >= values.size
@@ -113,10 +113,10 @@ class SubPattern
   private
 
   # (private) Check if the subpattern matches a value
-  # @param [Object] value The value to match
-  # @param [Array] matched_so_far The values that have been matched so far
-  # @param [Array] all_values All the values that are being matched
-  # @param [Integer] position The current position in the values array
+  # @param value [Object] The value to match
+  # @param matched_so_far [Array] The values that have been matched so far
+  # @param all_values [Array] All the values that are being matched
+  # @param position [Integer] The current position in the values array
   # @return [Boolean] Whether the subpattern matches the value
   def match_evaluator?(value, matched_so_far = [], all_values = [], position = 0)
     key = [value, matched_so_far, position].hash
@@ -129,11 +129,11 @@ class SubPattern
   end
 
   # (private) Match the nodes against a list of values
-  # @param [Array] nodes The nodes to match against
-  # @param [Array] values The values to match against
-  # @param [Array] matched_so_far The matched elements so far
-  # @param [Integer] position The current position in the values array
-  # @param [Array] new_value The new value matched
+  # @param nodes [Array] The nodes to match against
+  # @param values [Array] The values to match against
+  # @param matched_so_far [Array] The matched elements so far
+  # @param position [Integer] The current position in the values array
+  # @param new_value [Array] The new value matched
   # @return [Array, Array<Integer>] The matched elements and the next positions
   def match_nodes(nodes, values, matched_so_far, position, new_value = [])
     matches = []
@@ -159,7 +159,7 @@ class SubPattern
   end
 
   # (private) Remove non-capture groups from the matched elements
-  # @param [Array] matched The matched elements
+  # @param matched [Array] The matched elements
   # @return [Array] The matched elements without non-capture groups
   def remove_non_capture_groups(matched)
     @subpatterns.zip(matched).each_with_object([]) do |(subpattern, match), result|
@@ -169,7 +169,7 @@ class SubPattern
 
   # (private) Check if all elements matched
   # Validates for optional and repeatable subpatterns
-  # @param [Array] matched_elements The matched elements
+  # @param matched_elements [Array] The matched elements
   # @return [Boolean] Whether all elements matched
   def match_complete?(matched_elements)
     return false if matched_elements.size != @subpatterns.size

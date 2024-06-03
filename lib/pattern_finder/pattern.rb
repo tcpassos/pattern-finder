@@ -10,22 +10,22 @@ class Pattern
   attr_reader :root, :global_options
 
   # Constructor
-  # @param [Proc] block The block to evaluate
+  # @param block [Proc] The block to evaluate
   def initialize(&block)
     @global_options = {}
     instance_eval(&block) if block
   end
 
   # Set global options for the pattern
-  # @param [Hash] options The options to set globally
+  # @param options [Hash] The options to set globally
   def set_options(options = {})
     @global_options.merge!(options)
     self
   end
 
   # Set global options for the pattern within a block
-  # @param [Hash] options The options to set globally
-  # @param [Proc] block The block to evaluate
+  # @param options [Hash] The options to set globally
+  # @param block [Proc] The block to evaluate
   def with_options(options = {}, &block)
     previous_options = @global_options.dup
     set_options(options)
@@ -34,8 +34,8 @@ class Pattern
   end
 
   # Set global options for the pattern within a block, allowing gaps until a stop condition is met
-  # @param [Proc] gap_break_condition The stop condition
-  # @param [Proc] block The block to evaluate
+  # @param gap_break_condition [Proc] The stop condition
+  # @param block [Proc] The block to evaluate
   def allow_gaps_until(gap_break_condition, &block)
     raise ArgumentError, 'Stop condition must be a Proc' unless gap_break_condition.is_a?(Proc)
 
@@ -43,7 +43,7 @@ class Pattern
   end
 
   # Add a node to the pattern
-  # @param [SubPattern] node The node to add
+  # @param node [SubPattern] The node to add
   def add_node(node)
     node.set_options(@global_options)
     if @root
@@ -54,14 +54,14 @@ class Pattern
   end
 
   # Match the pattern against a list of values
-  # @param [Array] values The values to match against
+  # @param values [Array] The values to match against
   # @return [Array, nil] The matched elements or nil if the pattern doesn't match
   def match(values)
     match_next_position(values)&.first
   end
 
   # Matches the pattern against the values and returns the matched elements and the final position.
-  # @param [Array] values The values to match against
+  # @param values [Array] The values to match against
   # @return [[Array, Integer], nil] The matched elements and the next position, or nil if no match
   def match_next_position(values)
     raise ArgumentError, 'Values must be an array' unless values.is_a?(Array)
@@ -72,7 +72,7 @@ class Pattern
   end
 
   # Check if the pattern matches a list of values
-  # @param [Array] values The values to match against
+  # @param values [Array] The values to match against
   # @return [Boolean] Whether the pattern matches the values
   def match?(values)
     !match(values).nil?

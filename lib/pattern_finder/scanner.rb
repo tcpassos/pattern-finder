@@ -8,7 +8,7 @@ class Scanner
   attr_accessor :pos
 
   # Constructor
-  # @param [Array] values The values to scan
+  # @param values [Array] The values to scan
   def initialize(values)
     @values = values
     @pos = 0
@@ -28,7 +28,7 @@ class Scanner
   # Tries to match with pattern at the current position.
   # If there's a match, the scanner advances the “scan pointer” and returns the matched values.
   # Otherwise, the scanner returns nil.
-  # @param [Pattern] pattern The pattern to match
+  # @param pattern [Pattern] The pattern to match
   # @return [Array, nil] The matched values or nil if the pattern doesn't match
   def scan(pattern)
     result, next_pos = pattern.match_next_position(@values[@pos..])
@@ -39,7 +39,7 @@ class Scanner
   # Scans the values until the pattern is matched.
   # Returns the matched values up to and including the end of the match, advancing the scan pointer to that location.
   # If there is no match, nil is returned.
-  # @param [Pattern] pattern The pattern to match
+  # @param pattern [Pattern] The pattern to match
   # @return [Array, nil] The matched values or nil if the pattern doesn't match
   def scan_until(pattern)
     initial_pos = @pos
