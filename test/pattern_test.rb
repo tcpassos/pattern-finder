@@ -173,6 +173,13 @@ class TestPattern < Minitest::Test
     assert_equal(2, position)
 
     assert_nil pattern.match_next_position(['a', 'c'])
+
+    pattern = Pattern.new
+    pattern.value_eq_opt(1)
+    pattern.value_eq_opt(2)
+
+    result, position = pattern.match_next_position([1])
+    assert_equal([[1], []], result.matched)
   end
 
   def test_match_next_position_repeated_optional_subpatterns
@@ -206,7 +213,7 @@ class TestPattern < Minitest::Test
     pattern.value_eq_opt(3)
 
     result, position = pattern.match_next_position([1, 1, 2, 3])
-    assert_equal([[1, 1], [2], [3]], result.matched)
+    assert_equal([[1, 1], [2, 3], []], result.matched)
     assert_equal(4, position)
   end
 

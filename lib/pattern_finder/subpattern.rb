@@ -98,12 +98,10 @@ class SubPattern
       nodes_to_match.unshift(self) if @repeat
 
       new_matches, new_positions = match_nodes(nodes_to_match, values, matched_so_far, next_position, value_matched)
-      matched.concat(new_matches.empty? ? [[[current_value]]] : new_matches)
-      positions.concat(new_positions.empty? ? [next_position] : new_positions)
-    elsif @allow_gaps
-      # Verificar condição de parada
-      return [[], [position]] if @stop_condition&.call(current_value)
 
+      matched.concat(new_matches.empty? ? [[[current_value]] + Array.new(@children.size) { [] }] : new_matches)
+      positions.concat(new_positions.empty? ? [next_position] : new_positions)
+    elsif @allow_gaps && !@stop_condition&.call(current_value)
       new_matches, new_positions = match_recursively(values, next_position, matched_so_far)
       matched.concat(new_matches)
       positions.concat(new_positions)

@@ -46,7 +46,6 @@ class Scanner
     until initial_pos >= @values.size
       result, next_pos = pattern.match_next_position(@values[initial_pos..])
       if next_pos&.nonzero?
-        puts "initial_pos: #{initial_pos}, next_pos: #{next_pos}, result: #{result}"
         @pos = initial_pos + next_pos
         return result.matched_flattened
       end
