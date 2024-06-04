@@ -94,14 +94,13 @@ class SubPattern
 
     if match_evaluator?(current_value, matched_so_far, values, position)
       value_matched = [current_value]
-      nodes_to_match = @children.dup
-      nodes_to_match.unshift(self) if @repeat
+      nodes_to_match = @repeat ? [self] + @children : @children
 
       new_matches, new_positions = match_nodes(nodes_to_match, values, matched_so_far, next_position, value_matched)
 
       matched.concat(new_matches.empty? ? [[[current_value]] + Array.new(@children.size) { [] }] : new_matches)
       positions.concat(new_positions.empty? ? [next_position] : new_positions)
-    elsif @allow_gaps && !@gap_break_condition&.call(current_valuem, matched_so_far, values, position)
+    elsif @allow_gaps && !match_break_condition?(current_value, matched_so_far, values, position)
       new_matches, new_positions = match_recursively(values, next_position, matched_so_far)
       matched.concat(new_matches)
       positions.concat(new_positions)
@@ -126,6 +125,19 @@ class SubPattern
     match = @evaluator.call(*args)
     @matched_cache[key] = match
     match
+  end
+
+  # (private) Check if the break condition is met
+  # @param value [Object] The value to match
+  # @param matched_so_far [Array] The values that have been matched so far
+  # @param all_values [Array] All the values that are being matched
+  # @param position [Integer] The current position in the values array
+  # @return [Boolean] Whether the break condition is met
+  def match_break_condition?(value, matched_so_far = [], all_values = [], position = 0)
+    return true unless @gap_break_condition
+
+    args = Array.new([@gap_break_condition.arity, 4].min) { |i| [value, matched_so_far, all_values, position][i] }
+    @gap_break_condition.call(*args)
   end
 
   # (private) Match the nodes against a list of values

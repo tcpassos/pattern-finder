@@ -8,8 +8,8 @@ class TestPattern < Minitest::Test
   def test_match_next_position_optional_and_repeated_subpatterns
     pattern = Pattern.new
     pattern.value_eq(1)
-    pattern.value_eq_opt(2)
-    pattern.value_eq_opt(3, repeat: true)
+    pattern.optional_eq(2)
+    pattern.optional_eq(3, repeat: true)
     pattern.value_eq(4, repeat: true)
 
     result, position = pattern.match_next_position([1, 2, 3, 4, 4, 4, 4, 5])
@@ -72,9 +72,9 @@ class TestPattern < Minitest::Test
 
   def test_match_next_position_mixed_types
     pattern = Pattern.new
-    pattern.value_is_a(Integer)
-    pattern.value_is_a_opt(String, repeat: true)
-    pattern.value_is_a(Float)
+    pattern.value_of(Integer)
+    pattern.optional_of(String, repeat: true)
+    pattern.value_of(Float)
 
     result, position = pattern.match_next_position([1, 'a', 'b', 'c', 1.1])
     assert_equal([[1], ['a', 'b', 'c'], [1.1]], result.matched)
@@ -90,7 +90,7 @@ class TestPattern < Minitest::Test
   def test_match_next_position_non_matching_values
     pattern = Pattern.new
     pattern.value_eq('x')
-    pattern.value_eq_opt('y')
+    pattern.optional_eq('y')
     pattern.value_eq('z', repeat: true)
 
     assert_nil pattern.match_next_position(['x', 'y', 'y', 'y'])
@@ -104,7 +104,7 @@ class TestPattern < Minitest::Test
   def test_match_next_position_complex_evaluators
     pattern = Pattern.new
     pattern.any(&:even?)
-    pattern.any_opt(repeat: true, &:odd?)
+    pattern.optional_any(repeat: true, &:odd?)
     pattern.any { |value| value > 10 }
 
     result, position = pattern.match_next_position([2, 1, 3, 5, 11])
@@ -120,9 +120,9 @@ class TestPattern < Minitest::Test
 
   def test_match_next_position_all_optional_subpatterns
     pattern = Pattern.new
-    pattern.value_eq_opt(1)
-    pattern.value_eq_opt(2)
-    pattern.value_eq_opt(3)
+    pattern.optional_eq(1)
+    pattern.optional_eq(2)
+    pattern.optional_eq(3)
 
     result, position = pattern.match_next_position([1, 2, 3])
     assert_equal([[1], [2], [3]], result.matched)
@@ -159,9 +159,9 @@ class TestPattern < Minitest::Test
 
   def test_match_next_position_optional_and_mandatory_subpatterns
     pattern = Pattern.new
-    pattern.value_eq_opt('a')
+    pattern.optional_eq('a')
     pattern.value_eq('b')
-    pattern.value_eq_opt('c')
+    pattern.optional_eq('c')
     pattern.value_eq('d')
 
     result, position = pattern.match_next_position(['a', 'b', 'c', 'd'])
@@ -175,8 +175,8 @@ class TestPattern < Minitest::Test
     assert_nil pattern.match_next_position(['a', 'c'])
 
     pattern = Pattern.new
-    pattern.value_eq_opt(1)
-    pattern.value_eq_opt(2)
+    pattern.optional_eq(1)
+    pattern.optional_eq(2)
 
     result, position = pattern.match_next_position([1])
     assert_equal([[1], []], result.matched)
@@ -184,7 +184,7 @@ class TestPattern < Minitest::Test
 
   def test_match_next_position_repeated_optional_subpatterns
     pattern = Pattern.new
-    pattern.value_eq_opt('a', repeat: true)
+    pattern.optional_eq('a', repeat: true)
     pattern.value_eq('b')
 
     result, position = pattern.match_next_position(['a', 'a', 'b'])
@@ -208,9 +208,9 @@ class TestPattern < Minitest::Test
 
   def test_match_next_position_repeated_values
     pattern = Pattern.new
-    pattern.value_eq_opt(1, repeat: true)
+    pattern.optional_eq(1, repeat: true)
     pattern.any(repeat: true)
-    pattern.value_eq_opt(3)
+    pattern.optional_eq(3)
 
     result, position = pattern.match_next_position([1, 1, 2, 3])
     assert_equal([[1, 1], [2, 3], []], result.matched)
@@ -234,8 +234,8 @@ class TestPattern < Minitest::Test
     assert_equal(4, position)
 
     pattern = Pattern.new
-    pattern.value_is_a(String, repeat: true, capture: false)
-    pattern.value_is_a(Integer)
+    pattern.value_of(String, repeat: true, capture: false)
+    pattern.value_of(Integer)
 
     result, position = pattern.match_next_position(['a', 'b', 1])
     assert_equal([[1]], result.matched)
