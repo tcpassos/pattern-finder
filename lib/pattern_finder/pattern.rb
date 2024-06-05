@@ -7,12 +7,13 @@ require_relative 'subpattern_factory'
 # Represents a pattern to match against a list of values
 class Pattern
   include SubPatternFactory
-  attr_reader :root, :global_options
+  attr_reader :root, :subpatterns, :global_options
 
   # Constructor
   # @param block [Proc] The block to evaluate
   def initialize(&block)
     @global_options = {}
+    @subpatterns = []
     instance_eval(&block) if block
   end
 
@@ -73,6 +74,7 @@ class Pattern
     else
       @root = node
     end
+    @subpatterns.push(node)
   end
 
   # Match the pattern against a list of values
@@ -89,8 +91,23 @@ class Pattern
     raise ArgumentError, 'Values must be an array' unless values.is_a?(Array)
     return unless @root
 
-    matched_elements, next_position = @root.match(values)
-    [PatternMatch.new(matched_elements, @root.subpatterns.map(&:name)), next_position] if matched_elements
+    matched = match_all(values, [{ node: @root }])
+    subpattern_names = @subpatterns.map(&:name)
+
+    # Sort matches by the size of each subarray in descending order
+    matched.sort_by! { |match| match[:matched].map { |subarray| -subarray.size } }
+
+    matched.each do |match|
+      next unless match_complete?(match[:matched])
+
+      clean_match = remove_non_capture_groups(match[:matched])
+      pattern_match = PatternMatch.new(clean_match, subpattern_names)
+      return [pattern_match, match[:next_pos]]
+    end
+
+    return [PatternMatch.new(Array.new(@subpatterns.size) { [] }, subpattern_names), 0] if @subpatterns.all?(&:optional)
+
+    nil
   end
 
   # Check if the pattern matches a list of values
@@ -100,13 +117,111 @@ class Pattern
     !match(values).nil?
   end
 
-  # Get the subpatterns of the pattern
-  # @return [Array<SubPattern>] The subpatterns of the pattern
-  def subpatterns
-    @root&.subpatterns || []
+  # ====================================================================================================================
+  # Private methods
+  # ====================================================================================================================
+  private
+
+  # (private) Match the specified values against the pattern
+  # This method returns every possible match, even if it's invalid
+  # @param values [Array] The values to match against
+  # @param stack [Array] Array containing the nodes to match and their state
+  # @param acc_matched [Array] The matched elements so far containing the matched elements and the next position
+  # @return [Array] The matched elements and the next position
+  def match_all(values, stack = [{}], acc_matched = [])
+    until stack.empty?
+      current_state = stack.shift
+      current_node = current_state[:node] || @root
+      last_node = current_state[:last_node] || current_node
+      current_pos = current_state[:pos] || 0
+      current_matched = current_state[:matched] || [[]]
+      current_matched_flat = current_state[:matched_flat]&.dup || []
+      next if current_pos >= values.size
+
+      current_value = values[current_pos]
+      has_matched_node = current_node.match_evaluator?(current_value, current_matched_flat, values, current_pos)
+
+      # If the current node is optional, add the children to the pending list without advancing the position
+      if current_node.optional
+        stack += current_node.children.map do |child|
+          {
+            node: child,
+            last_node: current_node,
+            pos: current_pos,
+            matched: current_node == last_node ? current_matched.map(&:dup) : current_matched.map(&:dup).push([]),
+            matched_flat: current_matched_flat
+          }
+        end
+      end
+
+      # If the current node has matched, advance validating the children with the next position
+      if has_matched_node
+        current_matched = current_matched.map(&:dup)
+        current_matched.last.push(current_value) if current_node == last_node
+        current_matched.push([current_value]) unless current_node == last_node
+        current_matched_flat.push(current_value)
+
+        next_nodes = current_node.children.dup
+        next_nodes.unshift(current_node) if current_node.repeat && current_pos < values.size - 1
+
+        stack += next_nodes.map do |node|
+          {
+            node: node,
+            last_node: current_node,
+            pos: current_pos + 1,
+            matched: current_matched,
+            matched_flat: current_matched_flat
+          }
+        end
+      end
+
+      # If the current node has children, add empty arrays for each child
+      if current_pos == values.size - 1 && !current_node.children.empty?
+        current_matched += Array.new(count_child_levels(current_node)) { [] }
+      end
+
+      # End of the pattern, add the current match to the accumulator
+      if current_pos == values.size - 1 || current_node.children.empty?
+        next_pos = current_pos + (has_matched_node ? 1 : 0)
+        acc_matched << { matched: current_matched, next_pos: next_pos } if has_matched_node || current_node.optional
+      end
+    end
+
+    acc_matched
+  end
+
+  # (private) Count the levels of children
+  # @param node [SubPattern] The node to count the levels
+  # @return [Integer] The number of levels of children
+  def count_child_levels(node)
+    return 0 if node.children.empty?
+
+    1 + count_child_levels(node.children.first)
+  end
+
+  # (private) Remove non-capture groups from the matched elements
+  # @param matched [Array] The matched elements
+  # @return [Array] The matched elements without non-capture groups
+  def remove_non_capture_groups(matched)
+    @subpatterns.zip(matched).each_with_object([]) do |(subpattern, match), result|
+      result << match if subpattern.capture
+    end
+  end
+
+  # (private) Check if all elements matched
+  # Validates for optional and repeatable subpatterns
+  # @param matched_elements [Array] The matched elements
+  # @return [Boolean] Whether all elements matched
+  def match_complete?(matched_elements)
+    return false if matched_elements.size != @subpatterns.size
+
+    @subpatterns.zip(matched_elements).all? do |subpattern, matched|
+      (subpattern.optional || matched&.any?) && (subpattern.repeat || matched&.size.to_i <= 1)
+    end
   end
 end
 
+# =====================================================================================================================
 # Pattern match
 class PatternMatch
   extend Forwardable

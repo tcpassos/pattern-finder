@@ -180,6 +180,7 @@ class TestPattern < Minitest::Test
 
     result, position = pattern.match_next_position([1])
     assert_equal([[1], []], result.matched)
+    assert_equal(1, position)
   end
 
   def test_match_next_position_repeated_optional_subpatterns
