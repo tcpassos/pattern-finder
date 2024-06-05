@@ -100,8 +100,7 @@ class Pattern
     matched.each do |match|
       next unless match_complete?(match[:matched])
 
-      clean_match = remove_non_capture_groups(match[:matched])
-      pattern_match = PatternMatch.new(clean_match, subpattern_names)
+      pattern_match = PatternMatch.new(match[:matched], subpattern_names)
       return [pattern_match, match[:next_pos]]
     end
 
@@ -128,51 +127,58 @@ class Pattern
   # @param stack [Array] Array containing the nodes to match and their state
   # @param acc_matched [Array] The matched elements so far containing the matched elements and the next position
   # @return [Array] The matched elements and the next position
-  def match_all(values, stack = [{}], acc_matched = [])
+  def match_all(values, stack, acc_matched = [])
     until stack.empty?
       current_state = stack.shift
-      current_node = current_state[:node] || @root
-      last_node = current_state[:last_node] || current_node
       current_pos = current_state[:pos] || 0
-      current_matched = current_state[:matched] || [[]]
-      current_matched_flat = current_state[:matched_flat]&.dup || []
+
       next if current_pos >= values.size
 
+      current_node = current_state[:node]
       current_value = values[current_pos]
+      current_matched = current_state[:matched] || [[]]
+      current_matched_flat = current_state[:matched_flat]&.dup || []
       has_matched_node = current_node.match_evaluator?(current_value, current_matched_flat, values, current_pos)
+      previous_self = current_state[:previous_self].nil? || current_state[:previous_self]
+      previous_matched = current_state[:previous_matched]
 
       # If the current node is optional, add the children to the pending list without advancing the position
-      if current_node.optional
-        stack += current_node.children.map do |child|
+      # This is done only if the previous node didn't match and wasn't itself
+      if current_node.optional && !(previous_self && previous_matched)
+        stack.concat(current_node.children.map do |child|
           {
             node: child,
-            last_node: current_node,
             pos: current_pos,
-            matched: current_node == last_node ? current_matched.map(&:dup) : current_matched.map(&:dup).push([]),
-            matched_flat: current_matched_flat
+            matched: previous_self ? current_matched.dup : current_matched.dup.push([]),
+            matched_flat: current_matched_flat,
+            previous_self: false,
+            previous_matched: false
           }
-        end
+        end)
       end
 
       # If the current node has matched, advance validating the children with the next position
       if has_matched_node
         current_matched = current_matched.map(&:dup)
-        current_matched.last.push(current_value) if current_node == last_node
-        current_matched.push([current_value]) unless current_node == last_node
-        current_matched_flat.push(current_value)
+        if previous_self
+          current_matched.last.push(current_value)
+        else
+          current_matched.push([current_value])
+        end
 
         next_nodes = current_node.children.dup
         next_nodes.unshift(current_node) if current_node.repeat && current_pos < values.size - 1
 
-        stack += next_nodes.map do |node|
+        stack.concat(next_nodes.map do |node|
           {
             node: node,
-            last_node: current_node,
             pos: current_pos + 1,
             matched: current_matched,
-            matched_flat: current_matched_flat
+            matched_flat: current_matched_flat + [current_value],
+            previous_self: node == current_node,
+            previous_matched: true
           }
-        end
+        end)
       end
 
       # If the current node has children, add empty arrays for each child
@@ -197,15 +203,6 @@ class Pattern
     return 0 if node.children.empty?
 
     1 + count_child_levels(node.children.first)
-  end
-
-  # (private) Remove non-capture groups from the matched elements
-  # @param matched [Array] The matched elements
-  # @return [Array] The matched elements without non-capture groups
-  def remove_non_capture_groups(matched)
-    @subpatterns.zip(matched).each_with_object([]) do |(subpattern, match), result|
-      result << match if subpattern.capture
-    end
   end
 
   # (private) Check if all elements matched

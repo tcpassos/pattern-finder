@@ -3,7 +3,7 @@
 # Sub-pattern representation
 class SubPattern
   attr_reader :evaluator, :children, :subpatterns,
-              :name, :optional, :repeat, :capture,
+              :name, :optional, :repeat,
               :allow_gaps, :gap_break_condition
 
   # Constructor
@@ -18,7 +18,6 @@ class SubPattern
     @name = options.fetch(:name, nil)
     @optional = options.fetch(:optional, false)
     @repeat = options.fetch(:repeat, false)
-    @capture = options.fetch(:capture, true)
     @allow_gaps = options.fetch(:allow_gaps, nil)
     @gap_break_condition = options.fetch(:gap_break_condition, nil)
   end

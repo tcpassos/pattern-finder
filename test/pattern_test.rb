@@ -217,33 +217,6 @@ class TestPattern < Minitest::Test
     assert_equal([[1, 1], [2, 3], []], result.matched)
     assert_equal(4, position)
   end
-
-  def test_match_next_position_non_capturing_and_mandatory_subpattern
-    pattern = Pattern.new
-    pattern.value_eq(1)
-    pattern.value_eq(2, repeat: true, capture: false)
-    pattern.value_eq(3)
-
-    result, position = pattern.match_next_position([1, 2, 3])
-    assert_equal([[1], [3]], result.matched)
-    assert_equal(3, position)
-
-    assert_nil pattern.match_next_position([1, 4, 3]) # Should fail because 2 is mandatory
-
-    result, position = pattern.match_next_position([1, 2, 2, 3])
-    assert_equal([[1], [3]], result.matched)
-    assert_equal(4, position)
-
-    pattern = Pattern.new
-    pattern.value_of(String, repeat: true, capture: false)
-    pattern.value_of(Integer)
-
-    result, position = pattern.match_next_position(['a', 'b', 1])
-    assert_equal([[1]], result.matched)
-    assert_equal(3, position)
-
-    assert_nil pattern.match_next_position(['a', 'b', 'c']) # Should fail because Integer is mandatory
-  end
 end
 
 # Run the tests
