@@ -152,6 +152,7 @@ class Pattern
   # @param queue [Array] Array containing the subpatterns to match and their state
   # @param values [Array] The values to match against
   # @param acc_matched [Array] The matched elements so far containing the matched elements and the next position
+  # rubocop:disable Metrics/AbcSize, Metrics/PerceivedComplexity, Metrics/CyclomaticComplexity, Metrics/MethodLength
   def process_state(state, queue, values, acc_matched)
     value_pos = state[:value_pos]
 
@@ -168,9 +169,6 @@ class Pattern
     previous_self = state[:previous_self].nil? || state[:previous_self]
     previous_matched = state[:previous_matched]
 
-    # Skip the current subpattern if it doesn't match and it's not optional
-    return if !has_matched_subpattern && !subpattern.optional
-
     # If the current subpattern is optional, add an empty array to the current match and continue
     if subpattern.optional && !(previous_self && previous_matched) && subpattern_pos < @subpatterns.size - 1
       queue << {
@@ -183,35 +181,39 @@ class Pattern
       }
     end
 
-    # If the current subpattern matches, add the value to the current match and continue
+    # ==================================
+    # ADD the value to the current match
+    # ==================================
     if has_matched_subpattern
       # Duplicate the last match to avoid modifying the previous one
       current_matched = current_matched.dup.tap { |cm| cm[-1] = cm.last.dup }
       previous_self ? current_matched.last << value : current_matched << [value]
+    end
 
-      # If the current subpattern is repeatable, add the current subpattern to match the next value
-      if subpattern.repeat
-        queue << {
-          subpattern_pos: subpattern_pos,
-          value_pos: value_pos + 1,
-          matched: current_matched,
-          matched_flat: Array.new(current_matched.size, value),
-          previous_self: true,
-          previous_matched: true
-        }
-      end
+    # If the current subpattern is repeatable, add the current subpattern to match the next value
+    if (has_matched_subpattern && subpattern.repeat) ||
+       (!has_matched_subpattern && subpattern.allow_gaps &&
+        !subpattern.match_break_condition?(value, current_matched_flat, values, value_pos))
+      queue << {
+        subpattern_pos: subpattern_pos,
+        value_pos: value_pos + 1,
+        matched: current_matched,
+        matched_flat: Array.new(current_matched.size, value),
+        previous_self: has_matched_subpattern && subpattern.repeat,
+        previous_matched: true
+      }
+    end
 
-      # Add the next subpattern to the queue to match the next value
-      if subpattern_pos < @subpatterns.size - 1
-        queue << {
-          subpattern_pos: subpattern_pos + 1,
-          value_pos: value_pos + 1,
-          matched: current_matched,
-          matched_flat: Array.new(current_matched.size, value),
-          previous_self: false,
-          previous_matched: true
-        }
-      end
+    # Add the next subpattern to the queue to match the next value
+    if has_matched_subpattern && subpattern_pos < @subpatterns.size - 1
+      queue << {
+        subpattern_pos: subpattern_pos + 1,
+        value_pos: value_pos + 1,
+        matched: current_matched,
+        matched_flat: Array.new(current_matched.size, value),
+        previous_self: false,
+        previous_matched: true
+      }
     end
 
     # To add the current match to the accumulator, the following conditions must be met:
@@ -228,6 +230,7 @@ class Pattern
     # End of the pattern, add the current match to the accumulator
     acc_matched << { matched: final_matched, next_pos: value_pos + 1 }
   end
+  # rubocop:enable Metrics/AbcSize, Metrics/PerceivedComplexity, Metrics/CyclomaticComplexity, Metrics/MethodLength
 
   # (private) Calculate the weight of a match
   # The weight is the sum of the sizes of the matched subarrays sorted in descending order
