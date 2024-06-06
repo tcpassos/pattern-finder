@@ -44,7 +44,7 @@ module SubPatternFactory
   # @return [self] Returns the pattern for method chaining
   def any(**options, &additional_evaluator)
     evaluator = ->(v) { additional_evaluator.nil? || additional_evaluator.call(v) }
-    add_node(SubPattern.new(evaluator, **options))
+    add_subpattern(SubPattern.new(evaluator, **options))
     self
   end
 
@@ -54,7 +54,7 @@ module SubPatternFactory
   # @param options [Hash] Options to configure the subpattern
   # @return [self] Returns the pattern for method chaining
   def value_eq(value, **options)
-    add_node(SubPattern.new(->(v) { v == value }, **options))
+    add_subpattern(SubPattern.new(->(v) { v == value }, **options))
     self
   end
 
@@ -64,7 +64,7 @@ module SubPatternFactory
   # @param options [Hash] Options to configure the subpattern
   # @return [self] Returns the pattern for method chaining
   def value_neq(value, **options)
-    add_node(SubPattern.new(->(v) { v != value }, **options))
+    add_subpattern(SubPattern.new(->(v) { v != value }, **options))
     self
   end
 
@@ -74,7 +74,7 @@ module SubPatternFactory
   # @param options [Hash] Options to configure the subpattern
   # @return [self] Returns the pattern for method chaining
   def value_in(range, **options)
-    add_node(SubPattern.new(->(v) { range.include?(v) }, **options))
+    add_subpattern(SubPattern.new(->(v) { range.include?(v) }, **options))
     self
   end
 
@@ -84,7 +84,7 @@ module SubPatternFactory
   # @param options [Hash] Options to configure the subpattern
   # @return [self] Returns the pattern for method chaining
   def value_of(type, **options)
-    add_node(SubPattern.new(->(v) { v.is_a?(type) }, **options))
+    add_subpattern(SubPattern.new(->(v) { v.is_a?(type) }, **options))
     self
   end
 
@@ -93,7 +93,7 @@ module SubPatternFactory
   # @param options [Hash] Options to configure the subpattern
   # @return [self] Returns the pattern for method chaining
   def present(**options)
-    add_node(SubPattern.new(->(v) { !v.nil? && v != '' }, **options))
+    add_subpattern(SubPattern.new(->(v) { !v.nil? && v != '' }, **options))
     self
   end
 
@@ -102,7 +102,7 @@ module SubPatternFactory
   # @param options [Hash] Options to configure the subpattern
   # @return [self] Returns the pattern for method chaining
   def absent(**options)
-    add_node(SubPattern.new(->(v) { v.nil? || v == '' }, **options))
+    add_subpattern(SubPattern.new(->(v) { v.nil? || v == '' }, **options))
     self
   end
 end

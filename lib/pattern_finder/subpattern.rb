@@ -2,9 +2,7 @@
 
 # Sub-pattern representation
 class SubPattern
-  attr_reader :evaluator, :children, :subpatterns,
-              :name, :optional, :repeat,
-              :allow_gaps, :gap_break_condition
+  attr_reader :evaluator, :name, :optional, :repeat, :allow_gaps, :gap_break_condition
 
   # Constructor
   # @param evaluator [Proc] The evaluator for the subpattern
@@ -13,8 +11,6 @@ class SubPattern
     raise ArgumentError, 'Evaluator must be a Proc' unless evaluator.is_a?(Proc)
 
     @evaluator = evaluator
-    @children = []
-
     @name = options.fetch(:name, nil)
     @optional = options.fetch(:optional, false)
     @repeat = options.fetch(:repeat, false)
@@ -28,19 +24,6 @@ class SubPattern
     options.each_key do |key|
       instance_variable_set("@#{key}", options.fetch(key, instance_variable_get("@#{key}")))
     end
-  end
-
-  # Push a node to the tree
-  # @param node [SubPattern] The node to push
-  def push_node(node)
-    return if node == self
-
-    # Propagate the allow_gaps flag to the children if it's not set
-    node.set_options(allow_gaps: @allow_gaps) if node.allow_gaps.nil?
-    node.set_options(gap_break_condition: @gap_break_condition) if node.gap_break_condition.nil?
-
-    @children << node unless mandatory_ahead?
-    @children.each { |child| child.push_node(node) }
   end
 
   # Check if the subpattern matches a value
@@ -65,21 +48,5 @@ class SubPattern
 
     args = Array.new([@gap_break_condition.arity, 4].min) { |i| [value, matched_so_far, all_values, position][i] }
     @gap_break_condition.call(*args)
-  end
-
-  protected
-
-  # (protected) Propagate options to children
-  def propagate_options
-    @children.each do |child|
-      child.set_options(allow_gaps: @allow_gaps, gap_break_condition: @gap_break_condition)
-      child.propagate_options
-    end
-  end
-
-  # (protected) Check if the node has a child that is not optional ahead
-  # @return [Boolean] Whether the node has a mandatory subpattern ahead
-  def mandatory_ahead?
-    @children.any? { |child| !child.optional || child.mandatory_ahead? }
   end
 end

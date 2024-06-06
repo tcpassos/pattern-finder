@@ -7,13 +7,15 @@ require_relative 'subpattern_factory'
 # Represents a pattern to match against a list of values
 class Pattern
   include SubPatternFactory
-  attr_reader :root, :subpatterns, :global_options
+  attr_reader :subpatterns, :global_options
 
   # Constructor
   # @param block [Proc] The block to evaluate
   def initialize(&block)
     @global_options = {}
     @subpatterns = []
+    @subpattern_names = []
+    @last_mandatory_index = 0
     instance_eval(&block) if block
   end
 
@@ -65,16 +67,13 @@ class Pattern
     @global_options = previous_options
   end
 
-  # Add a node to the pattern
-  # @param node [SubPattern] The node to add
-  def add_node(node)
-    node.set_options(@global_options)
-    if @root
-      @root.push_node(node)
-    else
-      @root = node
-    end
-    @subpatterns.push(node)
+  # Add a subpattern to the pattern
+  # @param subpattern [SubPattern] The subpattern to add
+  def add_subpattern(subpattern)
+    subpattern.set_options(@global_options)
+    @subpatterns.push(subpattern)
+    @subpattern_names.push(subpattern.name)
+    @last_mandatory_index = @subpatterns.size - 1 unless subpattern.optional
   end
 
   # Match the pattern against a list of values
@@ -89,23 +88,30 @@ class Pattern
   # @return [[Array, Integer], nil] The matched elements and the next position, or nil if no match
   def match_next_position(values)
     raise ArgumentError, 'Values must be an array' unless values.is_a?(Array)
-    return unless @root
+    return unless @subpatterns.any?
 
-    matched = match_all(values, [{ node: @root }])
-    subpattern_names = @subpatterns.map(&:name)
+    # Find all possible matches
+    all_matches = match_all(values)
+    puts "Size of matched: #{all_matches.size}"
 
-    # Sort matches by the size of each subarray in descending order
-    matched.sort_by! { |match| match[:matched].map { |subarray| -subarray.size } }
+    # Select the best complete match
+    best_match = all_matches.lazy
+                            .select { |match| match_complete?(match[:matched]) }
+                            .max_by { |match| calculate_weight(match) }
 
-    matched.each do |match|
-      next unless match_complete?(match[:matched])
-
-      pattern_match = PatternMatch.new(match[:matched], subpattern_names)
-      return [pattern_match, match[:next_pos]]
+    # If a complete and valid match is found, return it
+    if best_match
+      pattern_match = PatternMatch.new(best_match[:matched], @subpattern_names)
+      return [pattern_match, best_match[:next_pos]]
     end
 
-    return [PatternMatch.new(Array.new(@subpatterns.size) { [] }, subpattern_names), 0] if @subpatterns.all?(&:optional)
+    # If all subpatterns are optional, return an empty match
+    if @subpatterns.all?(&:optional)
+      empty_match = Array.new(@subpatterns.size) { [] }
+      return [PatternMatch.new(empty_match, @subpattern_names), 0]
+    end
 
+    # Return nil if no complete and valid match is found
     nil
   end
 
@@ -124,85 +130,85 @@ class Pattern
   # (private) Match the specified values against the pattern
   # This method returns every possible match, even if it's invalid
   # @param values [Array] The values to match against
-  # @param stack [Array] Array containing the nodes to match and their state
+  # @param stack [Array] Array containing the subpatterns to match and their state
   # @param acc_matched [Array] The matched elements so far containing the matched elements and the next position
   # @return [Array] The matched elements and the next position
-  def match_all(values, stack, acc_matched = [])
+  def match_all(values, stack = [], acc_matched = [])
+    stack.push({ subpattern_pos: 0 })
+
     until stack.empty?
-      current_state = stack.shift
-      current_pos = current_state[:pos] || 0
+      state = stack.shift
+      value_pos = state[:value_pos] || 0
 
-      next if current_pos >= values.size
+      # Skip the current subpattern if the position is out of bounds
+      next if value_pos >= values.size
 
-      current_node = current_state[:node]
-      current_value = values[current_pos]
-      current_matched = current_state[:matched] || [[]]
-      current_matched_flat = current_state[:matched_flat]&.dup || []
-      has_matched_node = current_node.match_evaluator?(current_value, current_matched_flat, values, current_pos)
-      previous_self = current_state[:previous_self].nil? || current_state[:previous_self]
-      previous_matched = current_state[:previous_matched]
+      subpattern_pos = state[:subpattern_pos]
+      subpattern = @subpatterns[subpattern_pos]
+      value = values[value_pos]
+      current_matched = state[:matched] || [[]]
+      current_matched_flat = state[:matched_flat]&.dup || []
+      has_matched_subpattern = subpattern.match_evaluator?(value, current_matched_flat, values, value_pos)
+      previous_self = state[:previous_self].nil? || state[:previous_self]
+      previous_matched = state[:previous_matched]
 
-      # If the current node is optional, add the children to the pending list without advancing the position
-      # This is done only if the previous node didn't match and wasn't itself
-      if current_node.optional && !(previous_self && previous_matched)
-        stack.concat(current_node.children.map do |child|
-          {
-            node: child,
-            pos: current_pos,
-            matched: previous_self ? current_matched.dup : current_matched.dup.push([]),
-            matched_flat: current_matched_flat,
-            previous_self: false,
-            previous_matched: false
-          }
-        end)
+      # Skip the current subpattern if it doesn't match and it's not optional
+      next if !has_matched_subpattern && !subpattern.optional
+
+      # If the current subpattern is optional, add an empty array to the current match and continue
+      if subpattern.optional && !(previous_self && previous_matched) && subpattern_pos < @subpatterns.size - 1
+        new_state = {
+          subpattern_pos: subpattern_pos + 1,
+          value_pos: value_pos,
+          matched: previous_self ? current_matched : current_matched + [[]],
+          matched_flat: current_matched_flat,
+          previous_self: false,
+          previous_matched: false
+        }
+        stack.push(new_state)
       end
 
-      # If the current node has matched, advance validating the children with the next position
-      if has_matched_node
-        current_matched = current_matched.map(&:dup)
+      # If the current subpattern matches, add the value to the current match and continue
+      if has_matched_subpattern
+        current_matched = current_matched.map(&:dup) # Deep copy to avoid modifying the previous state
         if previous_self
-          current_matched.last.push(current_value)
+          current_matched.last.push(value)
         else
-          current_matched.push([current_value])
+          current_matched.push([value])
         end
 
-        next_nodes = current_node.children.dup
-        next_nodes.unshift(current_node) if current_node.repeat && current_pos < values.size - 1
-
-        stack.concat(next_nodes.map do |node|
+        subpatterns_to_match = subpattern.repeat ? [subpattern] : []
+        subpatterns_to_match.push(@subpatterns[subpattern_pos + 1]) if subpattern_pos + 1 < @subpatterns.size
+        stack.concat(subpatterns_to_match.map do |sp|
           {
-            node: node,
-            pos: current_pos + 1,
+            subpattern_pos: subpattern_pos + (sp == subpattern ? 0 : 1),
+            value_pos: value_pos + 1,
             matched: current_matched,
-            matched_flat: current_matched_flat + [current_value],
-            previous_self: node == current_node,
+            matched_flat: current_matched_flat + [value],
+            previous_self: sp == subpattern,
             previous_matched: true
           }
         end)
       end
 
-      # If the current node has children, add empty arrays for each child
-      if current_pos == values.size - 1 && !current_node.children.empty?
-        current_matched += Array.new(count_child_levels(current_node)) { [] }
-      end
+      next unless has_matched_subpattern
+      next unless subpattern_pos < @subpatterns.size || value_pos == values.size - 1
+      next if subpattern_pos < @last_mandatory_index
 
+      # If the current subpattern is the last one, add empty arrays to the current match until the end of the pattern
+      current_matched += Array.new(@subpatterns.size - subpattern_pos - 1) { [] }
       # End of the pattern, add the current match to the accumulator
-      if current_pos == values.size - 1 || current_node.children.empty?
-        next_pos = current_pos + (has_matched_node ? 1 : 0)
-        acc_matched << { matched: current_matched, next_pos: next_pos } if has_matched_node || current_node.optional
-      end
+      acc_matched << { matched: current_matched, next_pos: value_pos + 1 }
     end
 
     acc_matched
   end
 
-  # (private) Count the levels of children
-  # @param node [SubPattern] The node to count the levels
-  # @return [Integer] The number of levels of children
-  def count_child_levels(node)
-    return 0 if node.children.empty?
-
-    1 + count_child_levels(node.children.first)
+  # (private) Calculate the weight of a match
+  # The weight is the sum of the sizes of the matched subarrays sorted in descending order
+  # @param match [Hash] The match to calculate the weight for
+  def calculate_weight(match)
+    match[:matched].map(&:size).sum
   end
 
   # (private) Check if all elements matched
