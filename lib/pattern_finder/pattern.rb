@@ -71,8 +71,8 @@ class Pattern
   # @param subpattern [SubPattern] The subpattern to add
   def add_subpattern(subpattern)
     subpattern.set_options(@global_options)
-    @subpatterns.push(subpattern)
-    @subpattern_names.push(subpattern.name)
+    @subpatterns << subpattern
+    @subpattern_names << subpattern.name
     @last_mandatory_index = @subpatterns.size - 1 unless subpattern.optional
   end
 
@@ -92,7 +92,6 @@ class Pattern
 
     # Find all possible matches
     all_matches = match_all(values)
-    puts "Size of matched: #{all_matches.size}"
 
     # Select the best complete match
     best_match = all_matches.lazy
@@ -130,78 +129,104 @@ class Pattern
   # (private) Match the specified values against the pattern
   # This method returns every possible match, even if it's invalid
   # @param values [Array] The values to match against
-  # @param stack [Array] Array containing the subpatterns to match and their state
+  # @param queue [Array] Array containing the subpatterns to match and their state
   # @param acc_matched [Array] The matched elements so far containing the matched elements and the next position
   # @return [Array] The matched elements and the next position
-  def match_all(values, stack = [], acc_matched = [])
-    stack.push({ subpattern_pos: 0 })
+  def match_all(values, queue = Queue.new, acc_matched = [])
+    # First state
+    queue << ({ subpattern_pos: 0, value_pos: 0, matched: [[]], matched_flat: [],
+                previous_self: nil, previous_matched: nil })
 
-    until stack.empty?
-      state = stack.shift
-      value_pos = state[:value_pos] || 0
-
-      # Skip the current subpattern if the position is out of bounds
-      next if value_pos >= values.size
-
-      subpattern_pos = state[:subpattern_pos]
-      subpattern = @subpatterns[subpattern_pos]
-      value = values[value_pos]
-      current_matched = state[:matched] || [[]]
-      current_matched_flat = state[:matched_flat]&.dup || []
-      has_matched_subpattern = subpattern.match_evaluator?(value, current_matched_flat, values, value_pos)
-      previous_self = state[:previous_self].nil? || state[:previous_self]
-      previous_matched = state[:previous_matched]
-
-      # Skip the current subpattern if it doesn't match and it's not optional
-      next if !has_matched_subpattern && !subpattern.optional
-
-      # If the current subpattern is optional, add an empty array to the current match and continue
-      if subpattern.optional && !(previous_self && previous_matched) && subpattern_pos < @subpatterns.size - 1
-        new_state = {
-          subpattern_pos: subpattern_pos + 1,
-          value_pos: value_pos,
-          matched: previous_self ? current_matched : current_matched + [[]],
-          matched_flat: current_matched_flat,
-          previous_self: false,
-          previous_matched: false
-        }
-        stack.push(new_state)
-      end
-
-      # If the current subpattern matches, add the value to the current match and continue
-      if has_matched_subpattern
-        current_matched = current_matched.map(&:dup) # Deep copy to avoid modifying the previous state
-        if previous_self
-          current_matched.last.push(value)
-        else
-          current_matched.push([value])
-        end
-
-        subpatterns_to_match = subpattern.repeat ? [subpattern] : []
-        subpatterns_to_match.push(@subpatterns[subpattern_pos + 1]) if subpattern_pos + 1 < @subpatterns.size
-        stack.concat(subpatterns_to_match.map do |sp|
-          {
-            subpattern_pos: subpattern_pos + (sp == subpattern ? 0 : 1),
-            value_pos: value_pos + 1,
-            matched: current_matched,
-            matched_flat: current_matched_flat + [value],
-            previous_self: sp == subpattern,
-            previous_matched: true
-          }
-        end)
-      end
-
-      next unless has_matched_subpattern
-      next unless subpattern_pos < @subpatterns.size || value_pos == values.size - 1
-      next if subpattern_pos < @last_mandatory_index
-
-      # If the current subpattern is the last one, add empty arrays to the current match until the end of the pattern
-      current_matched += Array.new(@subpatterns.size - subpattern_pos - 1) { [] }
-      # End of the pattern, add the current match to the accumulator
-      acc_matched << { matched: current_matched, next_pos: value_pos + 1 }
+    # Process all states in the queue
+    until queue.empty?
+      state = queue.pop
+      process_state(state, queue, values, acc_matched)
     end
 
+    # Return the matched elements
     acc_matched
+  end
+
+  # (private) Process the current state of the pattern matching
+  # @param state [Hash] The current state of the pattern matching
+  # @param queue [Array] Array containing the subpatterns to match and their state
+  # @param values [Array] The values to match against
+  # @param acc_matched [Array] The matched elements so far containing the matched elements and the next position
+  def process_state(state, queue, values, acc_matched)
+    value_pos = state[:value_pos]
+
+    # Skip the current subpattern if the position is out of bounds
+    return if value_pos >= values.size
+
+    # Get the current properties
+    subpattern_pos = state[:subpattern_pos]
+    subpattern = @subpatterns[subpattern_pos]
+    value = values[value_pos]
+    current_matched = state[:matched]
+    current_matched_flat = state[:matched_flat]
+    has_matched_subpattern = subpattern.match_evaluator?(value, current_matched_flat, values, value_pos)
+    previous_self = state[:previous_self].nil? || state[:previous_self]
+    previous_matched = state[:previous_matched]
+
+    # Skip the current subpattern if it doesn't match and it's not optional
+    return if !has_matched_subpattern && !subpattern.optional
+
+    # If the current subpattern is optional, add an empty array to the current match and continue
+    if subpattern.optional && !(previous_self && previous_matched) && subpattern_pos < @subpatterns.size - 1
+      queue << {
+        subpattern_pos: subpattern_pos + 1,
+        value_pos: value_pos,
+        matched: previous_self ? current_matched : current_matched + [[]],
+        matched_flat: current_matched_flat,
+        previous_self: false,
+        previous_matched: false
+      }
+    end
+
+    # If the current subpattern matches, add the value to the current match and continue
+    if has_matched_subpattern
+      # Duplicate the last match to avoid modifying the previous one
+      current_matched = current_matched.dup.tap { |cm| cm[-1] = cm.last.dup }
+      previous_self ? current_matched.last << value : current_matched << [value]
+
+      # If the current subpattern is repeatable, add the current subpattern to match the next value
+      if subpattern.repeat
+        queue << {
+          subpattern_pos: subpattern_pos,
+          value_pos: value_pos + 1,
+          matched: current_matched,
+          matched_flat: Array.new(current_matched.size, value),
+          previous_self: true,
+          previous_matched: true
+        }
+      end
+
+      # Add the next subpattern to the queue to match the next value
+      if subpattern_pos < @subpatterns.size - 1
+        queue << {
+          subpattern_pos: subpattern_pos + 1,
+          value_pos: value_pos + 1,
+          matched: current_matched,
+          matched_flat: Array.new(current_matched.size, value),
+          previous_self: false,
+          previous_matched: true
+        }
+      end
+    end
+
+    # To add the current match to the accumulator, the following conditions must be met:
+    # - The current subpattern matches
+    # - The current subpattern is the last one or the current value is the last one
+    # - The current pattern don't have any mandatory subpatterns left
+    return unless has_matched_subpattern
+    return unless subpattern_pos < @subpatterns.size || value_pos == values.size - 1
+    return if subpattern_pos < @last_mandatory_index
+
+    # If the current subpattern is the last one, add empty arrays to the current match until the end of the pattern
+    final_matched = current_matched + Array.new(@subpatterns.size - subpattern_pos - 1) { [] }
+
+    # End of the pattern, add the current match to the accumulator
+    acc_matched << { matched: final_matched, next_pos: value_pos + 1 }
   end
 
   # (private) Calculate the weight of a match
