@@ -90,19 +90,19 @@ class Pattern
     raise ArgumentError, 'Values must be an array' unless values.is_a?(Array)
     return unless @subpatterns.any?
 
-    # Find all possible matches
-    all_matches = match_all(values)
+    # Initialize the queue and the match object
+    queue = Queue.new
+    queue << { subpattern_pos: 0, value_pos: 0, matched: [[]], matched_flat: [], previous_self: true }
+    match = { next_pos: 0 }
 
-    # Select the best complete match
-    best_match = all_matches.lazy
-                            .select { |match| match_complete?(match[:matched]) }
-                            .max_by { |match| calculate_weight(match) }
-
-    # If a complete and valid match is found, return it
-    if best_match
-      pattern_match = PatternMatch.new(best_match[:matched], @subpattern_names)
-      return [pattern_match, best_match[:next_pos]]
+    # Process all states in the queue
+    until queue.empty?
+      state = queue.pop
+      find_match(state, queue, values, match)
     end
+
+    # Return the matched elements and the next position if a valid match is found
+    return [PatternMatch.new(match[:matched], @subpattern_names), match[:next_pos]] unless match[:next_pos].zero?
 
     # If all subpatterns are optional, return an empty match
     if @subpatterns.all?(&:optional)
@@ -132,42 +132,40 @@ class Pattern
   # @param queue [Array] Array containing the subpatterns to match and their state
   # @param acc_matched [Array] The matched elements so far containing the matched elements and the next position
   # @return [Array] The matched elements and the next position
-  def match_all(values, queue = Queue.new, acc_matched = [])
+  def match_all(values, queue = Queue.new)
     # First state
     queue << ({ subpattern_pos: 0, value_pos: 0, matched: [[]], matched_flat: [],
-                previous_self: nil, previous_matched: nil })
+                previous_self: true, previous_matched: nil })
+    acc_matched = { next_pos: 0 }
 
     # Process all states in the queue
     until queue.empty?
       state = queue.pop
-      process_state(state, queue, values, acc_matched)
+      find_match(state, queue, values, acc_matched)
     end
 
     # Return the matched elements
     acc_matched
   end
 
-  # (private) Process the current state of the pattern matching
+  # (private) Find a match for the pattern
   # @param state [Hash] The current state of the pattern matching
   # @param queue [Array] Array containing the subpatterns to match and their state
   # @param values [Array] The values to match against
-  # @param acc_matched [Array] The matched elements so far containing the matched elements and the next position
+  # @param acc_matched [Array] The matched elements so far containing and the next position
   # rubocop:disable Metrics/AbcSize, Metrics/PerceivedComplexity, Metrics/CyclomaticComplexity, Metrics/MethodLength
-  def process_state(state, queue, values, acc_matched)
+  def find_match(state, queue, values, acc_matched)
     value_pos = state[:value_pos]
 
     # Skip the current subpattern if the position is out of bounds
     return if value_pos >= values.size
 
     # Get the current properties
-    subpattern_pos = state[:subpattern_pos]
+    subpattern_pos, current_matched, current_matched_flat = state.values_at(:subpattern_pos, :matched, :matched_flat)
+    previous_self, previous_matched = state.values_at(:previous_self, :previous_matched)
     subpattern = @subpatterns[subpattern_pos]
     value = values[value_pos]
-    current_matched = state[:matched]
-    current_matched_flat = state[:matched_flat]
     has_matched_subpattern = subpattern.match_evaluator?(value, current_matched_flat, values, value_pos)
-    previous_self = state[:previous_self].nil? || state[:previous_self]
-    previous_matched = state[:previous_matched]
 
     # If the current subpattern is optional, add an empty array to the current match and continue
     if subpattern.optional && !(previous_self && previous_matched) && subpattern_pos < @subpatterns.size - 1
@@ -219,37 +217,20 @@ class Pattern
     # To add the current match to the accumulator, the following conditions must be met:
     # - The current subpattern matches
     # - The current subpattern is the last one or the current value is the last one
+    # - The current match accumulated less than the previous one
     # - The current pattern don't have any mandatory subpatterns left
     return unless has_matched_subpattern
     return unless subpattern_pos < @subpatterns.size || value_pos == values.size - 1
+    return unless value_pos >= acc_matched[:next_pos]
     return if subpattern_pos < @last_mandatory_index
 
     # If the current subpattern is the last one, add empty arrays to the current match until the end of the pattern
     final_matched = current_matched + Array.new(@subpatterns.size - subpattern_pos - 1) { [] }
 
     # End of the pattern, add the current match to the accumulator
-    acc_matched << { matched: final_matched, next_pos: value_pos + 1 }
+    acc_matched.update(matched: final_matched, next_pos: value_pos + 1)
   end
   # rubocop:enable Metrics/AbcSize, Metrics/PerceivedComplexity, Metrics/CyclomaticComplexity, Metrics/MethodLength
-
-  # (private) Calculate the weight of a match
-  # The weight is the sum of the sizes of the matched subarrays sorted in descending order
-  # @param match [Hash] The match to calculate the weight for
-  def calculate_weight(match)
-    match[:matched].map(&:size).sum
-  end
-
-  # (private) Check if all elements matched
-  # Validates for optional and repeatable subpatterns
-  # @param matched_elements [Array] The matched elements
-  # @return [Boolean] Whether all elements matched
-  def match_complete?(matched_elements)
-    return false if matched_elements.size != @subpatterns.size
-
-    @subpatterns.zip(matched_elements).all? do |subpattern, matched|
-      (subpattern.optional || matched&.any?) && (subpattern.repeat || matched&.size.to_i <= 1)
-    end
-  end
 end
 
 # =====================================================================================================================
