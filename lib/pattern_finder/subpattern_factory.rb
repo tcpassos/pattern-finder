@@ -23,7 +23,7 @@ module SubPatternFactory
       name = if method_name.start_with?('value_')
                method_name.to_s.gsub('value_', "#{prefix}_").to_sym
              else
-               "#{prefix}_#{method_name}".to_sym
+               "#{prefix}_#{method_name}"
              end
       define_method(name) do |*args, **kwargs, &block|
         send(method_name, *args, **kwargs.merge(options), &block)

@@ -217,6 +217,73 @@ class TestPattern < Minitest::Test
     assert_equal([[1, 1], [2, 3], []], result.matched)
     assert_equal(4, position)
   end
+
+  def test_match_next_position_with_gaps_before_and_after
+    pattern = Pattern.new
+    pattern.value_eq(1)
+    pattern.value_eq(2, allow_gaps: true)
+    pattern.value_eq(3)
+
+    result, position = pattern.match_next_position([1, 4, 2, 5, 3])
+    assert_equal([[1], [2], [3]], result.matched)
+    assert_equal(5, position)
+
+    result, position = pattern.match_next_position([1, 2, 3])
+    assert_equal([[1], [2], [3]], result.matched)
+    assert_equal(3, position)
+
+    result, position = pattern.match_next_position([1, 4, 2, 3])
+    assert_equal([[1], [2], [3]], result.matched)
+    assert_equal(4, position)
+
+    assert_nil pattern.match_next_position([1, 4, 5, 6, 7])
+  end
+
+  def test_match_next_position_with_gaps_and_optional_before_and_after
+    pattern = Pattern.new
+    pattern.value_eq(1)
+    pattern.optional_eq(2, allow_gaps: true)
+    pattern.value_eq(3)
+
+    result, position = pattern.match_next_position([1, 4, 5, 2, 3])
+    assert_equal([[1], [2], [3]], result.matched)
+    assert_equal(5, position)
+
+    result, position = pattern.match_next_position([1, 4, 3])
+    assert_equal([[1], [], [3]], result.matched)
+    assert_equal(3, position)
+
+    result, position = pattern.match_next_position([1, 2, 3])
+    assert_equal([[1], [2], [3]], result.matched)
+    assert_equal(3, position)
+
+    result, position = pattern.match_next_position([1, 4, 2, 3])
+    assert_equal([[1], [2], [3]], result.matched)
+    assert_equal(4, position)
+
+    assert_nil pattern.match_next_position([4, 5, 6, 7])
+  end
+
+  def test_match_next_position_with_gaps_and_repeats_before_and_after
+    pattern = Pattern.new
+    pattern.value_eq(1)
+    pattern.value_eq(2, allow_gaps: true, repeat: true)
+    pattern.value_eq(3)
+
+    result, position = pattern.match_next_position([1, 4, 2, 5, 2, 3])
+    assert_equal([[1], [2, 2], [3]], result.matched)
+    assert_equal(6, position)
+
+    result, position = pattern.match_next_position([1, 2, 3])
+    assert_equal([[1], [2], [3]], result.matched)
+    assert_equal(3, position)
+
+    result, position = pattern.match_next_position([1, 4, 2, 3])
+    assert_equal([[1], [2], [3]], result.matched)
+    assert_equal(4, position)
+
+    assert_nil pattern.match_next_position([1, 4, 5, 6, 7])
+  end
 end
 
 # Run the tests

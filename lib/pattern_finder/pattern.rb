@@ -162,22 +162,19 @@ class Pattern
 
     # Get the current properties
     subpattern_pos, current_matched, current_matched_flat = state.values_at(:subpattern_pos, :matched, :matched_flat)
-    previous_self, previous_matched = state.values_at(:previous_self, :previous_matched)
     subpattern = @subpatterns[subpattern_pos]
     value = values[value_pos]
     has_matched_subpattern = subpattern.match_evaluator?(value, current_matched_flat, values, value_pos)
+    has_matched_break_condition = subpattern.match_break_condition?(value, current_matched_flat, values, value_pos)
+    is_last_subpattern = subpattern_pos == @subpatterns.size - 1
 
-    # If the current subpattern is optional, add an empty array to the current match and continue
-    if subpattern.optional && !(previous_self && previous_matched) && subpattern_pos < @subpatterns.size - 1
-      queue << {
-        subpattern_pos: subpattern_pos + 1,
-        value_pos: value_pos,
-        matched: previous_self ? current_matched : current_matched + [[]],
-        matched_flat: current_matched_flat,
-        previous_self: false,
-        previous_matched: false
-      }
-    end
+    previous_subpattern, previous_matched = state.values_at(:previous_subpattern, :previous_matched)
+    previous_self = previous_subpattern == subpattern || previous_subpattern.nil?
+    previous_has_matched_break_condition = previous_subpattern&.match_break_condition?(value, current_matched_flat,
+                                                                                       values, value_pos)
+
+    allow_gaps = subpattern.allow_gaps && !has_matched_break_condition
+    previous_allow_gaps = previous_subpattern&.allow_gaps && !previous_has_matched_break_condition
 
     # ==================================
     # ADD the value to the current match
@@ -186,43 +183,24 @@ class Pattern
       # Duplicate the last match to avoid modifying the previous one
       current_matched = current_matched.dup.tap { |cm| cm[-1] = cm.last.dup }
       previous_self ? current_matched.last << value : current_matched << [value]
+      state.update(matched: current_matched, matched_flat: current_matched_flat + [value])
     end
 
-    # If the current subpattern is repeatable, add the current subpattern to match the next value
-    if (has_matched_subpattern && subpattern.repeat) ||
-       (!has_matched_subpattern && subpattern.allow_gaps &&
-        !subpattern.match_break_condition?(value, current_matched_flat, values, value_pos))
-      queue << {
-        subpattern_pos: subpattern_pos,
-        value_pos: value_pos + 1,
-        matched: current_matched,
-        matched_flat: Array.new(current_matched.size, value),
-        previous_self: has_matched_subpattern && subpattern.repeat,
-        previous_matched: true
-      }
-    end
-
-    # Add the next subpattern to the queue to match the next value
-    if has_matched_subpattern && subpattern_pos < @subpatterns.size - 1
-      queue << {
-        subpattern_pos: subpattern_pos + 1,
-        value_pos: value_pos + 1,
-        matched: current_matched,
-        matched_flat: Array.new(current_matched.size, value),
-        previous_self: false,
-        previous_matched: true
-      }
-    end
+    advance_value(queue, state, subpattern) if has_matched_subpattern && subpattern.repeat
+    advance_value(queue, state, previous_subpattern) if !has_matched_subpattern && (allow_gaps || previous_allow_gaps)
+    advance_subpattern_and_value(queue, state, subpattern) if !is_last_subpattern &&
+                                                              # Optionals that didn't match are dealt with later
+                                                              !(subpattern.optional && !has_matched_subpattern) &&
+                                                              (has_matched_subpattern || allow_gaps)
+    advance_subpattern(queue, state, subpattern, previous_self) if subpattern.optional && !is_last_subpattern &&
+                                                                   !(previous_self && previous_matched)
 
     # To add the current match to the accumulator, the following conditions must be met:
     # - The current subpattern matches
     # - The current subpattern is the last one or the current value is the last one
     # - The current match accumulated less than the previous one
     # - The current pattern don't have any mandatory subpatterns left
-    return unless has_matched_subpattern
-    return unless subpattern_pos < @subpatterns.size || value_pos == values.size - 1
-    return unless value_pos >= acc_matched[:next_pos]
-    return if subpattern_pos < @last_mandatory_index
+    return unless should_match?(subpattern_pos, value_pos, acc_matched, current_matched, has_matched_subpattern)
 
     # If the current subpattern is the last one, add empty arrays to the current match until the end of the pattern
     final_matched = current_matched + Array.new(@subpatterns.size - subpattern_pos - 1) { [] }
@@ -231,6 +209,69 @@ class Pattern
     acc_matched.update(matched: final_matched, next_pos: value_pos + 1)
   end
   # rubocop:enable Metrics/AbcSize, Metrics/PerceivedComplexity, Metrics/CyclomaticComplexity, Metrics/MethodLength
+
+  # (private) Adds a new state to the queue with the next value
+  # @param queue [Array] Array containing the subpatterns to match and their state
+  # @param current_state [Hash] The current state of the pattern matching
+  # @param previous_subpattern [SubPattern] The previous subpattern
+  def advance_value(queue, current_state, previous_subpattern)
+    queue << {
+      subpattern_pos: current_state[:subpattern_pos],
+      value_pos: current_state[:value_pos] + 1,
+      matched: current_state[:matched],
+      matched_flat: current_state[:matched_flat],
+      previous_matched: true,
+      previous_subpattern: previous_subpattern
+    }
+  end
+
+  # (private) Adds a new state to the queue with the next subpattern
+  # @param queue [Array] Array containing the subpatterns to match and their state
+  # @param current_state [Hash] The current state of the pattern matching
+  # @param previous_subpattern [SubPattern] The previous subpattern
+  # @param previous_self [Boolean] Whether the previous subpattern is the same as the current one
+  def advance_subpattern(queue, current_state, previous_subpattern, previous_self)
+    queue << {
+      subpattern_pos: current_state[:subpattern_pos] + 1,
+      value_pos: current_state[:value_pos],
+      matched: previous_self ? current_state[:matched] : current_state[:matched] + [[]],
+      matched_flat: current_state[:matched_flat],
+      previous_matched: false,
+      previous_subpattern: previous_subpattern
+    }
+  end
+
+  # (private) Adds a new state to the queue with the next subpattern and value
+  # @param queue [Array] Array containing the subpatterns to match and their state
+  # @param current_state [Hash] The current state of the pattern matching
+  # @param previous_subpattern [SubPattern] The previous subpattern
+  def advance_subpattern_and_value(queue, current_state, previous_subpattern)
+    queue << {
+      subpattern_pos: current_state[:subpattern_pos] + 1,
+      value_pos: current_state[:value_pos] + 1,
+      matched: current_state[:matched],
+      matched_flat: current_state[:matched_flat],
+      previous_matched: true,
+      previous_subpattern: previous_subpattern
+    }
+  end
+
+  # (private) Check if the pattern should match the current value
+  # @param subpattern_pos [Integer] The index of the current subpattern
+  # @param value_pos [Integer] The index of the current value
+  # @param acc_matched [Array] The matched elements so far containing and the next position
+  # @param current_matched [Array] The current matched elements
+  # @param has_matched_subpattern [Boolean] Whether the current subpattern matches the current value
+  # @return [Boolean] Whether the pattern should match the current value
+  def should_match?(subpattern_pos, value_pos, acc_matched, current_matched, has_matched_subpattern)
+    return false unless has_matched_subpattern
+    return false unless subpattern_pos < @subpatterns.size || value_pos == values.size - 1
+    return false if subpattern_pos < @last_mandatory_index
+    return false unless value_pos >= acc_matched[:next_pos]
+    return false if acc_matched[:next_pos].positive? && current_matched.sum(&:size) < acc_matched[:matched].sum(&:size)
+
+    true
+  end
 end
 
 # =====================================================================================================================

@@ -44,6 +44,7 @@ class SubPattern
   # @param position [Integer] The current position in the values array
   # @return [Boolean] Whether the break condition is met
   def match_break_condition?(value, matched_so_far = [], all_values = [], position = 0)
+    return true unless @allow_gaps
     return false unless @gap_break_condition
 
     args = Array.new([@gap_break_condition.arity, 4].min) { |i| [value, matched_so_far, all_values, position][i] }
