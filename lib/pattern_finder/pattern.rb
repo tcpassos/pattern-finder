@@ -5,6 +5,7 @@ require_relative 'subpattern'
 require_relative 'subpattern_factory'
 
 # Represents a pattern to match against a list of values
+# rubocop:disable Metrics/ClassLength
 class Pattern
   include SubPatternFactory
   attr_reader :subpatterns, :global_options
@@ -14,7 +15,7 @@ class Pattern
   def initialize(&block)
     @global_options = {}
     @subpatterns = []
-    @subpattern_names = []
+    @subpattern_map = {}
     @last_mandatory_index = 0
     instance_eval(&block) if block
   end
@@ -23,13 +24,12 @@ class Pattern
   # @param identifier [Integer, Symbol] The index or name of the subpattern
   # @return [SubPattern, nil] The subpattern or nil if not found
   def [](identifier)
-    index = case identifier
-            when Integer
-              identifier
-            when Symbol
-              subpatterns.find_index { |sp| sp.name == identifier }
-            end
-    subpatterns[index] if index
+    case identifier
+    when Integer
+      subpatterns[identifier]
+    when Symbol
+      @subpattern_map[identifier]
+    end
   end
 
   # Set global options for the pattern
@@ -48,10 +48,8 @@ class Pattern
                             when Range
                               subpatterns[identifiers]
                             when Array
-                              if identifiers.first.is_a?(Symbol)
-                                identifiers.map { |name| subpatterns.find { |sp| sp.name == name } }
-                              else
-                                subpatterns.values_at(*identifiers)
+                              identifiers.map do |id|
+                                id.is_a?(Symbol) ? subpatterns.find { |sp| sp.name == id } : subpatterns[id]
                               end
                             end
     subpatterns_to_update.compact.each { |subpattern| subpattern.set_options(options) }
@@ -72,7 +70,11 @@ class Pattern
   def add_subpattern(subpattern)
     subpattern.set_options(@global_options)
     @subpatterns << subpattern
-    @subpattern_names << subpattern.name
+    if subpattern.name
+      raise ArgumentError, "Subpattern name '#{subpattern.name}' is already in use" if @subpattern_map[subpattern.name]
+
+      @subpattern_map[subpattern.name] = subpattern
+    end
     @last_mandatory_index = @subpatterns.size - 1 unless subpattern.optional
   end
 
@@ -102,12 +104,12 @@ class Pattern
     end
 
     # Return the matched elements and the next position if a valid match is found
-    return [PatternMatch.new(match[:matched], @subpattern_names), match[:next_pos]] unless match[:next_pos].zero?
+    return [PatternMatch.new(match[:matched], @subpatterns.map(&:name)), match[:next_pos]] unless match[:next_pos].zero?
 
     # If all subpatterns are optional, return an empty match
     if @subpatterns.all?(&:optional)
       empty_match = Array.new(@subpatterns.size) { [] }
-      return [PatternMatch.new(empty_match, @subpattern_names), 0]
+      return [PatternMatch.new(empty_match, @subpatterns.map(&:name)), 0]
     end
 
     # Return nil if no complete and valid match is found
@@ -125,28 +127,6 @@ class Pattern
   # Private methods
   # ====================================================================================================================
   private
-
-  # (private) Match the specified values against the pattern
-  # This method returns every possible match, even if it's invalid
-  # @param values [Array] The values to match against
-  # @param queue [Array] Array containing the subpatterns to match and their state
-  # @param acc_matched [Array] The matched elements so far containing the matched elements and the next position
-  # @return [Array] The matched elements and the next position
-  def match_all(values, queue = Queue.new)
-    # First state
-    queue << ({ subpattern_pos: 0, value_pos: 0, matched: [[]], matched_flat: [],
-                previous_self: true, previous_matched: nil })
-    acc_matched = { next_pos: 0 }
-
-    # Process all states in the queue
-    until queue.empty?
-      state = queue.pop
-      find_match(state, queue, values, acc_matched)
-    end
-
-    # Return the matched elements
-    acc_matched
-  end
 
   # (private) Find a match for the pattern
   # @param state [Hash] The current state of the pattern matching
@@ -265,14 +245,14 @@ class Pattern
   # @return [Boolean] Whether the pattern should match the current value
   def should_match?(subpattern_pos, value_pos, acc_matched, current_matched, has_matched_subpattern)
     return false unless has_matched_subpattern
-    return false unless subpattern_pos < @subpatterns.size || value_pos == values.size - 1
     return false if subpattern_pos < @last_mandatory_index
     return false unless value_pos >= acc_matched[:next_pos]
     return false if acc_matched[:next_pos].positive? && current_matched.sum(&:size) < acc_matched[:matched].sum(&:size)
 
-    true
+    subpattern_pos < @subpatterns.size || value_pos == values.size - 1
   end
 end
+# rubocop:enable Metrics/ClassLength
 
 # =====================================================================================================================
 # Pattern match
@@ -298,7 +278,7 @@ class PatternMatch
   # @return [Object, nil] The matched value or nil if not found
   def [](index)
     index = @name_indices[index] if index.is_a?(Symbol)
-    @matched[index]
+    @matched[index] if index
   end
 
   # Convert the matched values to a string
