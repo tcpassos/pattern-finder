@@ -4,30 +4,49 @@
 module PatternMatcher
   # Find a match for the pattern
   # @param state [Hash] The current state of the pattern matching
+  # @param values [Enumerable] The values to match
+  # @return [Hash] The match
+  def find_match(values)
+    queue = Queue.new
+    queue << { subpattern_pos: 0, matched: [[]], matched_flat: [], previous_self: true }
+    match = { next_pos: 0 }
+
+    values.each_with_index do |value, value_pos|
+      next_queue = Queue.new
+
+      process_queue(queue, next_queue, value, value_pos, match) until queue.empty?
+      queue = next_queue
+    end
+
+    match
+  end
+
+  private
+
+  # (private) Process the current state of the pattern matching
+  # @param state [Hash] The current state of the pattern matching
   # @param queue [Array] Array containing the subpatterns to match and their state
-  # @param values [Array] The values to match against
+  # @param next_queue [Array] Array containing the next value to match and their state
+  # @param value [Object] The value to match
+  # @param value_pos [Integer] The index of the current value
   # @param acc_matched [Array] The matched elements so far containing and the next position
   # rubocop:disable Metrics/AbcSize, Metrics/PerceivedComplexity, Metrics/CyclomaticComplexity, Metrics/MethodLength
-  def find_match(state, queue, values, acc_matched)
-    value_pos = state[:value_pos]
-
-    # Skip the current subpattern if the position is out of bounds
-    return if value_pos >= values.size
+  def process_queue(queue, next_queue, value, value_pos, acc_matched)
+    # Get the current state
+    state = queue.pop
 
     # Get current state properties
     subpattern_pos, current_matched, current_matched_flat = state.values_at(:subpattern_pos, :matched, :matched_flat)
     subpattern = @subpatterns[subpattern_pos]
-    value = values[value_pos]
-    has_matched_subpattern = subpattern.match_evaluator?(value, current_matched_flat, values, value_pos)
-    has_matched_break_condition = subpattern.match_break_condition?(value, current_matched_flat, values, value_pos)
+    has_matched_subpattern = subpattern.match_evaluator?(value, current_matched_flat)
+    has_matched_break_condition = subpattern.match_break_condition?(value, current_matched_flat)
     is_last_subpattern = subpattern_pos == @subpatterns.size - 1
     allow_gaps = subpattern.allow_gaps && !has_matched_break_condition
 
     # Get previous state properties
     previous_subpattern, previous_matched = state.values_at(:previous_subpattern, :previous_matched)
     previous_self = previous_subpattern == subpattern || previous_subpattern.nil?
-    previous_has_matched_break_condition = previous_subpattern&.match_break_condition?(value, current_matched_flat,
-                                                                                       values, value_pos)
+    previous_has_matched_break_condition = previous_subpattern&.match_break_condition?(value, current_matched_flat)
     previous_allow_gaps = previous_subpattern&.allow_gaps && !previous_has_matched_break_condition
 
     # ==================================
@@ -42,18 +61,19 @@ module PatternMatcher
 
     # If the current subpattern can repeat has matched and can repeat, procceed to the next value
     # ...with the same subpattern
-    advance_value(queue, state, subpattern) if has_matched_subpattern && subpattern.repeat
+    advance_value(next_queue, state, subpattern) if has_matched_subpattern && subpattern.repeat
 
     # If allow gaps between the current and the previous subpattern and the current subpattern han't matched,
     # ...advance the value with the previous subpattern
-    advance_value(queue, state, previous_subpattern) if !has_matched_subpattern && (allow_gaps || previous_allow_gaps)
+    advance_value(next_queue, state, previous_subpattern) if !has_matched_subpattern &&
+                                                             (allow_gaps || previous_allow_gaps)
 
     # If has matched the current subpattern or allow gaps, procceed to the next value with the next subpattern
-    advance_subpattern_and_value(queue, state, subpattern) if (has_matched_subpattern || allow_gaps) &&
-                                                              # Cannot advance the subpattern if it's the last one
-                                                              !is_last_subpattern &&
-                                                              # Optionals that didn't match are dealt with later
-                                                              !(subpattern.optional && !has_matched_subpattern)
+    advance_subpattern_and_value(next_queue, state, subpattern) if (has_matched_subpattern || allow_gaps) &&
+                                                                   # Cannot advance the last subpattern
+                                                                   !is_last_subpattern &&
+                                                                   # Optionals that didn't match are dealt with later
+                                                                   !(subpattern.optional && !has_matched_subpattern)
 
     # If the current subpattern is optional, adds a case to advance the subpattern without matching the current value
     advance_subpattern(queue, state, subpattern, previous_self) if subpattern.optional && !is_last_subpattern &&
@@ -74,8 +94,6 @@ module PatternMatcher
   end
   # rubocop:enable Metrics/AbcSize, Metrics/PerceivedComplexity, Metrics/CyclomaticComplexity, Metrics/MethodLength
 
-  private
-
   # (private) Adds a new state to the queue with the next value
   # @param queue [Array] Array containing the subpatterns to match and their state
   # @param current_state [Hash] The current state of the pattern matching
@@ -83,7 +101,6 @@ module PatternMatcher
   def advance_value(queue, current_state, previous_subpattern)
     queue << {
       subpattern_pos: current_state[:subpattern_pos],
-      value_pos: current_state[:value_pos] + 1,
       matched: current_state[:matched],
       matched_flat: current_state[:matched_flat],
       previous_matched: true,
@@ -99,7 +116,6 @@ module PatternMatcher
   def advance_subpattern(queue, current_state, previous_subpattern, previous_self)
     queue << {
       subpattern_pos: current_state[:subpattern_pos] + 1,
-      value_pos: current_state[:value_pos],
       matched: previous_self ? current_state[:matched] : current_state[:matched] + [[]],
       matched_flat: current_state[:matched_flat],
       previous_matched: false,
@@ -114,7 +130,6 @@ module PatternMatcher
   def advance_subpattern_and_value(queue, current_state, previous_subpattern)
     queue << {
       subpattern_pos: current_state[:subpattern_pos] + 1,
-      value_pos: current_state[:value_pos] + 1,
       matched: current_state[:matched],
       matched_flat: current_state[:matched_flat],
       previous_matched: true,

@@ -29,25 +29,21 @@ class SubPattern
   # Check if the subpattern matches a value
   # @param value [Object] The value to match
   # @param matched_so_far [Array] The values that have been matched so far
-  # @param all_values [Array] All the values that are being matched
-  # @param position [Integer] The current position in the values array
   # @return [Boolean] Whether the subpattern matches the value
-  def match_evaluator?(value, matched_so_far = [], all_values = [], position = 0)
-    args = Array.new([@evaluator.arity, 4].min) { |i| [value, matched_so_far, all_values, position][i] }
+  def match_evaluator?(value, matched_so_far = [])
+    args = Array.new([@evaluator.arity, 4].min) { |i| [value, matched_so_far][i] }
     @evaluator.call(*args)
   end
 
   # Check if the break condition is met
   # @param value [Object] The value to match
   # @param matched_so_far [Array] The values that have been matched so far
-  # @param all_values [Array] All the values that are being matched
-  # @param position [Integer] The current position in the values array
   # @return [Boolean] Whether the break condition is met
-  def match_break_condition?(value, matched_so_far = [], all_values = [], position = 0)
+  def match_break_condition?(value, matched_so_far = [])
     return true unless @allow_gaps
     return false unless @gap_break_condition
 
-    args = Array.new([@gap_break_condition.arity, 4].min) { |i| [value, matched_so_far, all_values, position][i] }
+    args = Array.new([@gap_break_condition.arity, 4].min) { |i| [value, matched_so_far][i] }
     @gap_break_condition.call(*args)
   end
 end

@@ -5,3 +5,7 @@ require_relative 'pattern_finder/subpattern_factory'
 require_relative 'pattern_finder/pattern'
 require_relative 'pattern_finder/pattern_match'
 require_relative 'pattern_finder/pattern_scanner'
+
+module Enumerable
+  include PatternScannerMethods
+end

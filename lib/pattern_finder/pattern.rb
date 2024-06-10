@@ -83,29 +83,20 @@ class Pattern
   end
 
   # Match the pattern against a list of values
-  # @param values [Array] The values to match against
-  # @return [Array, nil] The matched elements or nil if the pattern doesn't match
+  # @param values [Enumerable] The values to match against
+  # @return [PatternMatch] The matched elements or nil if the pattern doesn't match
   def match(values)
     match_next_position(values)&.first
   end
 
   # Matches the pattern against the values and returns the matched elements and the final position.
-  # @param values [Array] The values to match against
-  # @return [[Array, Integer], nil] The matched elements and the next position, or nil if no match
+  # @param values [Enumerable] The values to match against
+  # @return [[PatternMatch, Integer]] The matched elements and the next position, or nil if no match
   def match_next_position(values)
-    raise ArgumentError, 'Values must be an array' unless values.is_a?(Array)
+    raise ArgumentError, 'Values must be an Enumerable' unless values.is_a?(Enumerable)
     return unless @subpatterns.any?
 
-    # Initialize the queue and the match object
-    queue = Queue.new
-    queue << { subpattern_pos: 0, value_pos: 0, matched: [[]], matched_flat: [], previous_self: true }
-    match = { next_pos: 0 }
-
-    # Process all states in the queue
-    until queue.empty?
-      state = queue.pop
-      find_match(state, queue, values, match)
-    end
+    match = find_match(values)
 
     # Return the matched elements and the next position if a valid match is found
     return [PatternMatch.new(match[:matched], @subpatterns.map(&:name)), match[:next_pos]] unless match[:next_pos].zero?
@@ -121,7 +112,7 @@ class Pattern
   end
 
   # Check if the pattern matches a list of values
-  # @param values [Array] The values to match against
+  # @param values [Enumerable] The values to match against
   # @return [Boolean] Whether the pattern matches the values
   def match?(values)
     !match(values).nil?
