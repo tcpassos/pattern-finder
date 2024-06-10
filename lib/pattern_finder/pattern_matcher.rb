@@ -8,14 +8,23 @@ module PatternMatcher
   # @return [Hash] The match
   def find_match(values)
     queue = Queue.new
+    next_queue = Queue.new
     queue << { subpattern_pos: 0, matched: [[]], matched_flat: [], previous_self: true }
     match = { next_pos: 0 }
+    value_pos = 0
+    values = values.to_enum unless values.is_a?(Enumerator)
 
-    values.each_with_index do |value, value_pos|
-      next_queue = Queue.new
+    begin
+      loop do
+        break if queue.empty?
 
-      process_queue(queue, next_queue, value, value_pos, match) until queue.empty?
-      queue = next_queue
+        value = values.next
+        process_queue(queue, next_queue, value, value_pos, match) until queue.empty?
+        queue << next_queue.pop until next_queue.empty?
+        value_pos += 1
+      end
+    rescue StopIteration
+      # Stop the loop when the values are exhausted
     end
 
     match

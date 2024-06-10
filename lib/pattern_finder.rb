@@ -6,6 +6,6 @@ require_relative 'pattern_finder/pattern'
 require_relative 'pattern_finder/pattern_match'
 require_relative 'pattern_finder/pattern_scanner'
 
-module Enumerable
+class Array
   include PatternScannerMethods
 end
